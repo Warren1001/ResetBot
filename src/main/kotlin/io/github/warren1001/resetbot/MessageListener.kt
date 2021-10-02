@@ -36,6 +36,8 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 	
 	override fun accept(e: MessageCreateEvent) {
 		
+		// todo anything not related to commands
+		
 		if (e.message.content.isNullOrEmpty()) return;
 		
 		e.message.channel.map { it.id }.filter { tradeListeners.containsKey(it) }.subscribe{ tradeListeners[it]?.accept(e) }
