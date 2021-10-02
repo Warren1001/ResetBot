@@ -12,14 +12,13 @@ fun main(args: Array<String>) {
 	val client = DiscordClient.create(token)
 	
 	client.withGateway { gateway ->
-		val listener = MessageListener(gateway)
 		mono {
-			gateway.on(MessageCreateEvent::class.java).map { listener.accept(it) }.doOnError { e ->
+			gateway.on(MessageCreateEvent::class.java).doOnError { e ->
 				run {
 					e.printStackTrace()
 					gateway.logout().subscribe()
 				}
-			}.onErrorStop().subscribe()
+			}.onErrorStop().subscribe(MessageListener(gateway))
 			gateway.onDisconnect().doOnSuccess { ResetBot.sys("Logging out and shutting down...") }.subscribe()
 		}
 	}.block()
