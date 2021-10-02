@@ -16,14 +16,8 @@ class TradeChannelMessageListener(private val gateway: GatewayDiscordClient, pri
 		gateway.getChannelById(channelId).filter { it is MessageChannel }.map { it as MessageChannel }.flatMapMany { it.getMessagesBefore(Snowflake.of(Instant.now())) }
 			.filter { !it.isPinned && (it.content.isEmpty() || it.content[0] != '!') }.subscribe { msg ->
 				msg.authorAsMember.subscribe {
-					if (usersLastMessage.containsKey(it.id)) {
-						msg.delete().subscribe()
-						ResetBot.debug("Found a duplicate msg, delete it")
-					}
-					else {
-						usersLastMessage[it.id] = msg.id
-						ResetBot.debug("Found a msg from ${it.displayName}: ${msg.content}")
-					}
+					if (usersLastMessage.containsKey(it.id)) msg.delete().subscribe()
+					else usersLastMessage[it.id] = msg.id
 				}
 			}
 	}
