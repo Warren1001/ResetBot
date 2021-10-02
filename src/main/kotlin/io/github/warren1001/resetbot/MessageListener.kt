@@ -98,7 +98,8 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			"settradechannel" -> {
 				e.message.channel.map { it.id }.subscribe {
 					tradeListeners[it] = TradeChannelMessageListener(gateway, it)
-					tradeChannelsFile.appendText(it.asString())
+					if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText(it.asString())
+					else tradeChannelsFile.writeText(System.lineSeparator() + it.asString())
 				}
 				reply(e, "This channel has been set as a trade channel.", true, 5)
 			}
