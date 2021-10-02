@@ -1,36 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xmlns="http://maven.apache.org/POM/4.0.0"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  
-  <artifactId>ResetBot</artifactId>
   <groupId>io.github.warren1001</groupId>
-  <version>1.0.0</version>
-  <packaging>jar</packaging>
-  
+  <artifactId>ResetBot</artifactId>
   <name>ResetBot</name>
-  
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <kotlin.code.style>official</kotlin.code.style>
-    <kotlin.compiler.jvmTarget>13</kotlin.compiler.jvmTarget>
-  </properties>
-  
-  <repositories>
-    <repository>
-      <id>mavenCentral</id>
-      <url>https://repo1.maven.org/maven2/</url>
-    </repository>
-  </repositories>
-  
+  <version>1.0.0</version>
   <build>
-    <finalName>ResetBot</finalName>
     <sourceDirectory>src/main/kotlin</sourceDirectory>
     <testSourceDirectory>src/test/kotlin</testSourceDirectory>
+    <finalName>ResetBot</finalName>
     <plugins>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <version>3.2.4</version>
         <executions>
@@ -39,9 +19,6 @@
             <goals>
               <goal>shade</goal>
             </goals>
-            <!--<configuration>
-              <minimizeJar>true</minimizeJar>
-            </configuration>-->
           </execution>
         </executions>
       </plugin>
@@ -75,7 +52,6 @@
         </configuration>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
         <version>3.2.0</version>
         <configuration>
@@ -89,6 +65,12 @@
       </plugin>
     </plugins>
   </build>
+  <repositories>
+    <repository>
+      <id>mavenCentral</id>
+      <url>https://repo1.maven.org/maven2/</url>
+    </repository>
+  </repositories>
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -100,36 +82,9 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
-  <dependencies>
-    <dependency>
-      <groupId>org.jetbrains.kotlin</groupId>
-      <artifactId>kotlin-stdlib-jdk8</artifactId>
-      <version>1.5.30</version>
-    </dependency>
-    <dependency>
-      <groupId>io.projectreactor</groupId>
-      <artifactId>reactor-core</artifactId>
-      <version>3.4.9</version>
-    </dependency>
-    <dependency>
-      <groupId>com.discord4j</groupId>
-      <artifactId>discord4j-core</artifactId>
-      <version>3.2.0-RC3</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jetbrains.kotlinx</groupId>
-      <artifactId>kotlinx-coroutines-core</artifactId>
-      <version>1.5.2-native-mt</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jetbrains.kotlinx</groupId>
-      <artifactId>kotlinx-coroutines-reactor</artifactId>
-      <version>1.5.2-native-mt</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jetbrains.kotlinx</groupId>
-      <artifactId>kotlinx-coroutines-reactive</artifactId>
-      <version>1.5.2-native-mt</version>
-    </dependency>
-  </dependencies>
+  <properties>
+    <kotlin.code.style>official</kotlin.code.style>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <kotlin.compiler.jvmTarget>13</kotlin.compiler.jvmTarget>
+  </properties>
 </project>

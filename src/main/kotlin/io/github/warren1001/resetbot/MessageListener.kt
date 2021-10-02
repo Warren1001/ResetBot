@@ -2,15 +2,18 @@ package io.github.warren1001.resetbot
 
 import discord4j.common.util.Snowflake
 import discord4j.core.GatewayDiscordClient
+import discord4j.core.`object`.entity.Message
 import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.event.domain.message.MessageCreateEvent
+import discord4j.core.event.domain.message.MessageEvent
+import discord4j.core.event.domain.message.MessageUpdateEvent
 import discord4j.core.spec.MessageCreateSpec
 import discord4j.rest.util.Permission
 import java.io.File
 import java.time.Duration
 import java.util.function.Consumer
 
-class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<MessageCreateEvent> {
+class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<MessageEvent> {
 	
 	private val tradeListeners = mutableMapOf<Snowflake, TradeChannelMessageListener>()
 	private val tradeChannelsFile = File("tradeChannels.txt")
@@ -31,107 +34,128 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 		
 		if (tradeChannelsFile.exists()) tradeChannelsFile.forEachLine { gateway.getChannelById(Snowflake.of(it)).filter { it is MessageChannel }.map { it as MessageChannel }.map { it.id }
 			.subscribe { tradeListeners[it] = TradeChannelMessageListener(gateway, it) } }
+		else tradeChannelsFile.createNewFile()
 		
 	}
 	
-	override fun accept(e: MessageCreateEvent) {
+	override fun accept(e: MessageEvent) {
+		
+		//ResetBot.debug("content: ${e.message.content}")
+		//ResetBot.debug("data: ${e.message.data}")
 		
 		// todo anything not related to commands
 		
-		if (e.message.content.isNullOrEmpty()) return;
-		
-		e.message.channel.map { it.id }.filter { tradeListeners.containsKey(it) }.subscribe{ tradeListeners[it]?.accept(e) }
-		
-		if (e.message.content[0] != '!') return
-		
-		val contents = e.message.content.substring(1)
-		var args = contents.split(' ', limit = 2)
-		val command = args[0]
-		val arguments = if (args.size == 1) null else args[1]
-		
-		val optionalMember = e.member
-		if (optionalMember.isEmpty) return ResetBot.error("No member found in MessageListener?")
-		val member = optionalMember.get()
-		
-		if (!e.message.authorAsMember.block()?.basePermissions?.block()?.contains(Permission.ADMINISTRATOR)!!) return
-		
-		when (command.lowercase()) {
+		if (e is MessageUpdateEvent) {
 			
-			"stop" -> {
-				gateway.logout().subscribe()
-				reply(e, "Bye!")
+			e.message.subscribe { msg ->
+				msg.authorAsMember.filter { !it.isBot }.flatMap { msg.channel }.map { it.id }.filter { tradeListeners.containsKey(it) }.subscribe{ tradeListeners[it]?.accept(e) }
 			}
 			
-			"join" -> {
-				if (arguments == null) return reply(e, "Usage: !join [team_name] [build name]")
-				
-				args = arguments.split(' ', limit = 2)
-				
-				if (args.size < 2) return reply(e, "Usage: !join [team_name] [build name]")
-				
-				val team = teams[args[0].lowercase()] ?: return reply(e, "There is no team named '${args[0]}' (case not sensitive).");
-				
-				if (team.isFull()) return reply(e, "Team '${team.teamName}' is full, choose another team.")
-				
-				team.addUser(member.id, args[1])
-				reply(e, "You have joined Team ${team.teamName}!")
-				createNewTeamIfNeeded(team.softcore)
-				
-			}
+		} else if (e is MessageCreateEvent) {
 			
-			"leave" -> {
+			val optionalMember = e.member
+			if (optionalMember.isEmpty) return ResetBot.error("No member found in MessageListener?")
+			val member = optionalMember.get()
+			
+			if (member.isBot) return;
+			
+			e.message.channel.map { it.id }.filter { tradeListeners.containsKey(it) }.subscribe{ tradeListeners[it]?.accept(e) }
+			
+			if (e.message.content.isNullOrEmpty() || e.message.content[0] != '!') return
+			
+			val contents = e.message.content.substring(1)
+			var args = contents.split(' ', limit = 2)
+			val command = args[0]
+			val arguments = if (args.size == 1) null else args[1]
+			
+			if (!member.basePermissions.block()?.contains(Permission.ADMINISTRATOR)!!) return
+			
+			when (command.lowercase()) {
 				
-				if (arguments == null) return reply(e, "Usage: !leave [team_name]")
-				
-				val team = teams[arguments.lowercase()] ?: return reply(e, "There is no team named '$arguments' (case not sensitive).");
-				
-				if (team.removeUser(member.id)) {
-					reply(e, "You have been removed from Team '${team.teamName}'.")
-				} else {
-					reply(e, "You are not in Team '${team.teamName}'.")
+				"stop" -> {
+					gateway.logout().subscribe()
+					reply(e.message, "Bye!")
 				}
 				
-			}
-			
-			"list" -> reply(e, createPrettyTeamList())
-			
-			"settradechannel" -> {
-				e.message.channel.map { it.id }.subscribe {
-					tradeListeners[it] = TradeChannelMessageListener(gateway, it)
-					if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText(it.asString())
-					else tradeChannelsFile.writeText(System.lineSeparator() + it.asString())
+				"join" -> {
+					
+					if (arguments == null) return reply(e.message, "Usage: !join [team_name] [build name]")
+					
+					args = arguments.split(' ', limit = 2)
+					
+					if (args.size < 2) return reply(e.message, "Usage: !join [team_name] [build name]")
+					
+					val team = teams[args[0].lowercase()] ?: return reply(e.message, "There is no team named '${args[0]}' (case not sensitive).");
+					
+					if (team.isFull()) return reply(e.message, "Team '${team.teamName}' is full, choose another team.")
+					
+					team.addUser(member.id, args[1])
+					reply(e.message, "You have joined Team ${team.teamName}!")
+					createNewTeamIfNeeded(team.softcore)
+					
 				}
-				reply(e, "This channel has been set as a trade channel.", true, 5)
-			}
-			
-			"removetradechannel" -> {
-				e.message.channel.map { it.id }.subscribe {
-					tradeListeners.remove(it)
-					val list = tradeChannelsFile.readLines().toMutableList()
-					list.remove(it.asString())
-					tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+				
+				"leave" -> {
+					
+					if (arguments == null) return reply(e.message, "Usage: !leave [team_name]")
+					
+					val team = teams[arguments.lowercase()] ?: return reply(e.message, "There is no team named '$arguments' (case not sensitive).");
+					
+					if (team.removeUser(member.id)) {
+						reply(e.message, "You have been removed from Team '${team.teamName}'.")
+					} else {
+						reply(e.message, "You are not in Team '${team.teamName}'.")
+					}
+					
 				}
-				reply(e, "This channel has been removed as a trade channel.", true, 5)
+				
+				"list" -> reply(e.message, createPrettyTeamList())
+				
+				"settradechannel" -> {
+					e.message.channel.map { it.id }.subscribe {
+						tradeListeners[it] = TradeChannelMessageListener(gateway, it)
+						if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText(it.asString())
+						else tradeChannelsFile.appendText(System.lineSeparator() + it.asString())
+					}
+					reply(e.message, "This channel has been set as a trade channel.", true, 5)
+				}
+				
+				"removetradechannel" -> {
+					e.message.channel.map { it.id }.subscribe {
+						tradeListeners.remove(it)
+						val list = tradeChannelsFile.readLines().toMutableList()
+						list.remove(it.asString())
+						tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+					}
+					reply(e.message, "This channel has been removed as a trade channel.", true, 5)
+				}
+				
+				else -> ResetBot.info("'$contents' is not a valid command.")
+				
 			}
-			
-			else -> ResetBot.info("'$contents' is not a valid command.")
 			
 		}
+		
+		
 		
 		
 	}
 	
-	private fun reply(e: MessageCreateEvent, msg: String, delete: Boolean = false, duration: Long = -1L) {
+	private fun reply(message: Message, msg: String, delete: Boolean = false, duration: Long = -1L) {
+		
 		val specBuilder = MessageCreateSpec.builder()
+		
 		if (delete) {
-			if (delete) e.message.delete().subscribe()
-			specBuilder.content("${e.message.authorAsMember.block()?.mention}, $msg")
-		} else {
-			specBuilder.messageReference(e.message.id).content(msg)
-		}
-		e.message.channel.flatMap { it.createMessage(specBuilder.build()) }.subscribe{
+			
+			message.delete().subscribe()
+			specBuilder.content("${message.authorAsMember.block()?.mention}, $msg")
+			
+		} else specBuilder.messageReference(message.id).content(msg)
+		
+		message.channel.flatMap { it.createMessage(specBuilder.build()) }.subscribe{
 			if (duration != -1L) it.delete().delaySubscription(Duration.ofSeconds(duration)).subscribe()
 		}
+		
 	}
 	
 	private fun createNewTeamIfNeeded(softcore: Boolean) {
