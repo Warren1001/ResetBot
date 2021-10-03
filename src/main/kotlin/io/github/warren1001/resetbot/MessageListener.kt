@@ -5,6 +5,7 @@ import discord4j.core.GatewayDiscordClient
 import discord4j.core.`object`.entity.Message
 import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.event.domain.message.MessageCreateEvent
+import discord4j.core.event.domain.message.MessageDeleteEvent
 import discord4j.core.event.domain.message.MessageEvent
 import discord4j.core.event.domain.message.MessageUpdateEvent
 import discord4j.core.spec.MessageCreateSpec
@@ -32,8 +33,11 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			teams[teamName.lowercase()] = Team(teamName, false)
 		}
 		
-		if (tradeChannelsFile.exists()) tradeChannelsFile.forEachLine { gateway.getChannelById(Snowflake.of(it)).filter { it is MessageChannel }.map { it as MessageChannel }.map { it.id }
-			.subscribe { tradeListeners[it] = TradeChannelMessageListener(gateway, it) } }
+		if (tradeChannelsFile.exists()) tradeChannelsFile.forEachLine {
+			val args = it.split(',', limit = 2)
+			gateway.getChannelById(Snowflake.of(args[0])).filter { it is MessageChannel }.map { it as MessageChannel }.map { it.id }
+				.subscribe { tradeListeners[it] = TradeChannelMessageListener(gateway, it, args[1] == "true") }
+		}
 		else tradeChannelsFile.createNewFile()
 		
 	}
@@ -45,10 +49,16 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 		
 		// todo anything not related to commands
 		
-		if (e is MessageUpdateEvent) {
+		if (e is MessageDeleteEvent) {
+			
+			if (tradeListeners.containsKey(e.channelId)) {
+				tradeListeners[e.channelId]?.removeMessage(e.messageId)
+			}
+			
+		} else if (e is MessageUpdateEvent) {
 			
 			e.message.subscribe { msg ->
-				msg.authorAsMember.filter { !it.isBot }.flatMap { msg.channel }.map { it.id }.filter { tradeListeners.containsKey(it) }.subscribe{ tradeListeners[it]?.accept(e) }
+				msg.authorAsMember.filter { !it.isBot }.map { msg.channelId }.filter { tradeListeners.containsKey(it) }.subscribe{ tradeListeners[it]?.accept(e) }
 			}
 			
 		} else if (e is MessageCreateEvent) {
@@ -59,16 +69,15 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			
 			if (member.isBot) return;
 			
-			e.message.channel.map { it.id }.filter { tradeListeners.containsKey(it) }.subscribe{ tradeListeners[it]?.accept(e) }
+			if (tradeListeners.containsKey(e.message.channelId)) tradeListeners[e.message.channelId]?.accept(e)
 			
-			if (e.message.content.isNullOrEmpty() || e.message.content[0] != '!') return
+			if (e.message.content.isNullOrEmpty() || e.message.content[0] != '!' || !member.basePermissions.block()?.contains(Permission.ADMINISTRATOR)!!) return
 			
 			val contents = e.message.content.substring(1)
 			var args = contents.split(' ', limit = 2)
 			val command = args[0]
 			val arguments = if (args.size == 1) null else args[1]
-			
-			if (!member.basePermissions.block()?.contains(Permission.ADMINISTRATOR)!!) return
+			val channelId = e.message.channelId
 			
 			when (command.lowercase()) {
 				
@@ -112,22 +121,61 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 				"list" -> reply(e.message, createPrettyTeamList())
 				
 				"settradechannel" -> {
-					e.message.channel.map { it.id }.subscribe {
-						tradeListeners[it] = TradeChannelMessageListener(gateway, it)
-						if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText(it.asString())
-						else tradeChannelsFile.appendText(System.lineSeparator() + it.asString())
-					}
+					tradeListeners[channelId] = TradeChannelMessageListener(gateway, channelId, false)
+					if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},false")
+					else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},false")
 					reply(e.message, "This channel has been set as a trade channel.", true, 5)
 				}
 				
 				"removetradechannel" -> {
-					e.message.channel.map { it.id }.subscribe {
-						tradeListeners.remove(it)
-						val list = tradeChannelsFile.readLines().toMutableList()
-						list.remove(it.asString())
-						tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
-					}
+					tradeListeners.remove(channelId)
+					val list = tradeChannelsFile.readLines().toMutableList()
+					list.removeIf { it.startsWith(channelId.asString()) }
+					tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
 					reply(e.message, "This channel has been removed as a trade channel.", true, 5)
+				}
+				
+				"setbuychannel" -> {
+					
+					if (tradeListeners.containsKey(channelId)) {
+						
+						if (tradeListeners[channelId]?.setIsBuy(true) == true) {
+							
+							val list = tradeChannelsFile.readLines().toMutableList()
+							list.remove("${channelId.asString()},false")
+							list.add("${channelId.asString()},true")
+							tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+							reply(e.message, "This channel has been set as a buy channel.", true, 5)
+							
+						} else reply(e.message, "This channel is already a buy channel!", true, 5)
+						
+					} else {
+						
+						tradeListeners[channelId] = TradeChannelMessageListener(gateway, channelId, true)
+						if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},true")
+						else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},true")
+						reply(e.message, "This channel has been set as a buy channel.", true, 5)
+						
+					}
+					
+				}
+				
+				"removebuychannel" -> {
+					
+					if (tradeListeners.containsKey(channelId) && tradeListeners[channelId]?.setIsBuy(false) == true) {
+						
+						val list = tradeChannelsFile.readLines().toMutableList()
+						list.remove("${channelId.asString()},true")
+						list.add("${channelId.asString()},false")
+						tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+						reply(e.message, "This channel has been removed as a buy channel.", true, 5)
+						
+					} else reply(e.message, "This channel is already not a buy channel!", true, 5)
+					
+				}
+				
+				"ping" -> {
+					reply(e.message, "Pong.", true, 5)
 				}
 				
 				else -> ResetBot.info("'$contents' is not a valid command.")

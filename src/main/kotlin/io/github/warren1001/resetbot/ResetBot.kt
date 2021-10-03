@@ -2,6 +2,7 @@ package io.github.warren1001.resetbot
 
 import discord4j.core.DiscordClient
 import discord4j.core.event.domain.message.MessageCreateEvent
+import discord4j.core.event.domain.message.MessageDeleteEvent
 import discord4j.core.event.domain.message.MessageUpdateEvent
 import kotlinx.coroutines.reactor.mono
 import java.time.LocalDateTime
@@ -22,6 +23,12 @@ fun main(args: Array<String>) {
 				}
 			}.onErrorStop().subscribe(messageListener)
 			gateway.on(MessageUpdateEvent::class.java).doOnError { e ->
+				run {
+					e.printStackTrace()
+					gateway.logout().subscribe()
+				}
+			}.onErrorStop().subscribe(messageListener)
+			gateway.on(MessageDeleteEvent::class.java).doOnError { e ->
 				run {
 					e.printStackTrace()
 					gateway.logout().subscribe()
