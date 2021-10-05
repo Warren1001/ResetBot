@@ -11,10 +11,14 @@ import discord4j.core.spec.MessageCreateSpec
 import discord4j.rest.util.Permission
 import java.io.File
 import java.time.Duration
+import java.time.Instant
 import java.util.function.Consumer
 
 class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<MessageEvent> {
 	
+	private val humanRoleId = Snowflake.of(894707550904254494)
+	private val humanChannelId = Snowflake.of(894708010549669978)
+	private val humanChannel: MessageChannel
 	private val channelLogger = ChannelLogger(gateway)
 	private val swearFilter = SwearFilter(this)
 	private val tradeListeners = mutableMapOf<Snowflake, TradeChannelMessageListener>()
@@ -41,6 +45,11 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 		}
 		else tradeChannelsFile.createNewFile()
 		
+		humanChannel = gateway.getChannelById(humanChannelId).block() as MessageChannel
+		humanChannel.getMessagesBefore(Snowflake.of(Instant.now())).map { ShallowMessage(it) }.subscribe {
+			humanCheck(it)
+		}
+		
 	}
 	
 	override fun accept(e: MessageEvent) {
@@ -59,7 +68,7 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			val msg = ShallowMessage(e.message.block()!!)
 			
 			if (swearFilter.checkMessage(msg)) {
-				replyDeleted(msg, "Your message contained a swear or censored word so it was deleted. Remember that this is a family friendly community. :)", 20)
+				replyDeleted(msg, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
 			} else {
 				val channelId = msg.getMessage().channelId
 				if (!msg.getAuthor().isBot && tradeListeners.containsKey(channelId)) {
@@ -72,9 +81,11 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			val msg = ShallowMessage(e.message)
 			
 			if (msg.getAuthor().isBot || msg.getMessage().content.isNullOrEmpty()) return;
+			// role 894707550904254494
+			if (humanCheck(msg)) return
 			
 			if (swearFilter.checkMessage(msg)) {
-				replyDeleted(msg, "Your message contained a swear or censored word so it was deleted. Remember that this is a family friendly community. :)", 20)
+				replyDeleted(msg, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
 				return
 			}
 			
@@ -343,6 +354,18 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 	
 	fun delete(message: ShallowMessage, reason: String) {
 		message.delete { channelLogger.logDelete(it, reason) }
+	}
+	
+	fun humanCheck(msg: ShallowMessage): Boolean {
+		if (msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)) return false
+		if (msg.getChannel().id == humanChannelId) {
+			if (!msg.getMessage().content.isNullOrEmpty() && msg.getMessage().content.contains("human", ignoreCase = true)) {
+				msg.getAuthor().addRole(humanRoleId).subscribe()
+			}
+			msg.delete()
+			return true
+		}
+		return false
 	}
 	
 	

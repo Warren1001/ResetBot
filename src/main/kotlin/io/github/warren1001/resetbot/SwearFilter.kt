@@ -1,5 +1,6 @@
 package io.github.warren1001.resetbot
 
+import discord4j.rest.util.Permission
 import java.io.File
 import java.util.regex.Pattern
 
@@ -60,6 +61,8 @@ class SwearFilter(private val messageListener: MessageListener) {
 	}
 	
 	fun checkMessage(message: ShallowMessage): Boolean {
+		
+		if (message.getAuthorPermissions().contains(Permission.MANAGE_MESSAGES)) return false
 		
 		val stringBuilder = StringBuilder("The message below triggered the following patterns with the accompanying examples:\n ")
 		var flagged = false
