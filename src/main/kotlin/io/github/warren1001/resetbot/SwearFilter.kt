@@ -4,7 +4,7 @@ import discord4j.rest.util.Permission
 import java.io.File
 import java.util.regex.Pattern
 
-class SwearFilter(private val messageListener: MessageListener) {
+class SwearFilter(private val auriel: Auriel) {
 	
 	private val swearFilterFile = File("swearFilterPatterns.txt")
 	private val patterns = mutableSetOf<Pattern>()
@@ -80,7 +80,7 @@ class SwearFilter(private val messageListener: MessageListener) {
 		
 		if (!flagged) return false
 		
-		messageListener.delete(message, stringBuilder.toString())
+		auriel.getMessageListener().delete(message, stringBuilder.toString())
 		
 		return true
 	}

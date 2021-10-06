@@ -1,7 +1,6 @@
 package io.github.warren1001.resetbot
 
 import discord4j.common.util.Snowflake
-import discord4j.core.GatewayDiscordClient
 import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.event.domain.message.MessageCreateEvent
 import discord4j.core.event.domain.message.MessageDeleteEvent
@@ -11,53 +10,40 @@ import discord4j.core.spec.MessageCreateSpec
 import discord4j.rest.util.Permission
 import java.io.File
 import java.time.Duration
-import java.time.Instant
 import java.util.function.Consumer
 
-class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<MessageEvent> {
+class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	
-	private val humanRoleId = Snowflake.of(894707550904254494)
-	private val humanChannelId = Snowflake.of(894708010549669978)
-	private val humanChannel: MessageChannel
-	private val channelLogger = ChannelLogger(gateway)
-	private val swearFilter = SwearFilter(this)
+	private val swearFilter = SwearFilter(auriel)
+	private val botFilter = BotFilter(auriel)
+	
 	private val tradeListeners = mutableMapOf<Snowflake, TradeChannelMessageListener>()
 	private val tradeChannelsFile = File("tradeChannels.txt")
-	private val teams = mutableMapOf<String, Team>()
+	
+	/*private val teams = mutableMapOf<String, Team>()
 	private var lastTeamNumberSC: Int = 1
-	private var lastTeamNumberHC: Int = 1
+	private var lastTeamNumberHC: Int = 1*/
 	
 	init {
 		
-		// TODO store the teams somewhere
-		
+		/* TODO store the teams somewhere
 		if (teams.isEmpty()) {
 			var teamName = "SC-" + lastTeamNumberSC++
 			teams[teamName.lowercase()] = Team(teamName, true)
 			teamName = "HC-" + lastTeamNumberHC++
 			teams[teamName.lowercase()] = Team(teamName, false)
-		}
+		}*/
 		
 		if (tradeChannelsFile.exists()) tradeChannelsFile.forEachLine {
 			val args = it.split(',', limit = 2)
-			gateway.getChannelById(Snowflake.of(args[0])).filter { it is MessageChannel }.map { it as MessageChannel }.map { it.id }
-				.subscribe { tradeListeners[it] = TradeChannelMessageListener(this, it, args[1] == "true") }
+			auriel.getGateway().getChannelById(Snowflake.of(args[0])).doOnError { auriel.getLogger().logError(it) }.filter { it is MessageChannel }.map { it as MessageChannel }.map { it.id }
+				.subscribe { tradeListeners[it] = TradeChannelMessageListener(auriel, it, args[1] == "true") }
 		}
 		else tradeChannelsFile.createNewFile()
-		
-		humanChannel = gateway.getChannelById(humanChannelId).block() as MessageChannel
-		humanChannel.getMessagesBefore(Snowflake.of(Instant.now())).map { ShallowMessage(it) }.subscribe {
-			humanCheck(it)
-		}
 		
 	}
 	
 	override fun accept(e: MessageEvent) {
-		
-		//ResetBot.debug("content: ${e.message.content}")
-		//ResetBot.debug("data: ${e.message.data}")
-		
-		// todo anything not related to commands
 		
 		if (e is MessageDeleteEvent && tradeListeners.containsKey(e.channelId)) {
 			
@@ -65,7 +51,7 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			
 		} else if (e is MessageUpdateEvent) {
 			
-			val msg = ShallowMessage(e.message.block()!!)
+			val msg = ShallowMessage(auriel, e.message.block()!!)
 			
 			if (swearFilter.checkMessage(msg)) {
 				replyDeleted(msg, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
@@ -78,11 +64,11 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			
 		} else if (e is MessageCreateEvent) {
 			
-			val msg = ShallowMessage(e.message)
+			val msg = ShallowMessage(auriel, e.message)
 			
 			if (msg.getAuthor().isBot || msg.getMessage().content.isNullOrEmpty()) return;
-			// role 894707550904254494
-			if (humanCheck(msg)) return
+			
+			if (botFilter.humanCheck(msg)) return
 			
 			if (swearFilter.checkMessage(msg)) {
 				replyDeleted(msg, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
@@ -94,7 +80,7 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			if (msg.getMessage().content[0] != '!' || !msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)) return
 			
 			val contents = msg.getMessage().content.substring(1)
-			var args = contents.split(' ', limit = 2)
+			val args = contents.split(' ', limit = 2)
 			val command = args[0]
 			val arguments = if (args.size == 1) null else args[1]
 			val channelId = msg.getMessage().channelId
@@ -102,11 +88,11 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 			when (command.lowercase()) {
 				
 				"stop" -> {
-					gateway.logout().subscribe()
 					reply(msg, "Bye!")
+					auriel.stop()
 				}
 				
-				"join" -> {
+				/*"join" -> {
 					
 					if (arguments == null) return reply(msg, "Usage: !join [team_name] [build name]")
 					
@@ -138,10 +124,10 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 					
 				}
 				
-				"list" -> reply(msg, createPrettyTeamList())
+				"list" -> reply(msg, createPrettyTeamList())*/
 				
 				"settradechannel" -> {
-					tradeListeners[channelId] = TradeChannelMessageListener(this, channelId, false)
+					tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, false)
 					if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},false")
 					else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},false")
 					reply(msg, "This channel has been set as a trade channel.", true, 5)
@@ -171,7 +157,7 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 						
 					} else {
 						
-						tradeListeners[channelId] = TradeChannelMessageListener(this, channelId, true)
+						tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, true)
 						if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},true")
 						else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},true")
 						reply(msg, "This channel has been set as a buy channel.", true, 5)
@@ -220,7 +206,7 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 				
 				"setlogchannel" -> {
 					
-					if (channelLogger.addLogChannel(channelId)) {
+					if (auriel.getLogger().getChannelLogger().addLogChannel(channelId)) {
 						reply(msg, "This channel has been added as a logging channel.", true, 5)
 					} else {
 						reply(msg, "This channel is already a logging channel.", true, 5)
@@ -230,7 +216,7 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 				
 				"removelogchannel" -> {
 					
-					if (channelLogger.removeLogChannel(channelId)) {
+					if (auriel.getLogger().getChannelLogger().removeLogChannel(channelId)) {
 						reply(msg, "This channel has been removed as a logging channel.", true, 5)
 					} else {
 						reply(msg, "This channel is not a logging channel.", true, 5)
@@ -294,11 +280,29 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 					reply(msg, "Here are the swear filters currently in place:\n${swearFilter.getListOfPatterns()}")
 				}
 				
+				"sethumanroleid" -> {
+					
+					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !sethumanroleid [id]")
+					
+					botFilter.setHumanRoleId(Snowflake.of(arguments))
+					reply(msg, "Set $arguments ID as the human role.", true, 10)
+					
+				}
+				
+				"sethumanchannelid" -> {
+					
+					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !sethumanchannelid [id]")
+					
+					botFilter.setHumanChannelId(Snowflake.of(arguments))
+					reply(msg, "Set $arguments ID as the human channel.", true, 10)
+					
+				}
+				
 				"ping" -> {
 					reply(msg, "Pong.", true, 5)
 				}
 				
-				else -> ResetBot.info("'$contents' is not a valid command.")
+				else -> auriel.info("'$contents' is not a valid command.")
 				
 			}
 			
@@ -333,7 +337,7 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 		
 	}
 	
-	private fun createNewTeamIfNeeded(softcore: Boolean) {
+	/*private fun createNewTeamIfNeeded(softcore: Boolean) {
 		if (teams.filter { it.value.softcore == softcore }.all { it.value.isFull() }) {
 			val teamName = (if (softcore) "SC" else "HC") + "-" + (if (softcore) lastTeamNumberSC++ else lastTeamNumberHC++)
 			teams[teamName.lowercase()] = Team(teamName, softcore)
@@ -342,31 +346,10 @@ class MessageListener(private val gateway: GatewayDiscordClient) : Consumer<Mess
 	
 	private fun createPrettyTeamList(): String {
 		return teams.map { it.value.teamName }.joinToString(separator = ", ")
-	}
-	
-	fun getGateway(): GatewayDiscordClient {
-		return gateway
-	}
-	
-	fun getChannelLogger(): ChannelLogger {
-		return channelLogger
-	}
+	}*/
 	
 	fun delete(message: ShallowMessage, reason: String) {
-		message.delete { channelLogger.logDelete(it, reason) }
+		message.delete { auriel.getLogger().logDelete(it, reason) }
 	}
-	
-	fun humanCheck(msg: ShallowMessage): Boolean {
-		if (msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)) return false
-		if (msg.getChannel().id == humanChannelId) {
-			if (!msg.getMessage().content.isNullOrEmpty() && msg.getMessage().content.contains("human", ignoreCase = true)) {
-				msg.getAuthor().addRole(humanRoleId).subscribe()
-			}
-			msg.delete()
-			return true
-		}
-		return false
-	}
-	
 	
 }

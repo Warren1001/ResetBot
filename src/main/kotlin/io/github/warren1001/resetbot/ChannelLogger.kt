@@ -1,12 +1,11 @@
 package io.github.warren1001.resetbot
 
 import discord4j.common.util.Snowflake
-import discord4j.core.GatewayDiscordClient
 import discord4j.core.`object`.entity.channel.MessageChannel
 import reactor.core.publisher.Flux
 import java.io.File
 
-class ChannelLogger(private val gateway: GatewayDiscordClient) {
+class ChannelLogger(private val auriel: Auriel) {
 	
 	private val logChannelsFile = File("logChannels.txt")
 	private val channelsToLogTo = mutableSetOf<Snowflake>()
@@ -39,13 +38,18 @@ class ChannelLogger(private val gateway: GatewayDiscordClient) {
 		return true
 	}
 	
-	fun log(message: String) {
-		Flux.merge(channelsToLogTo.map { gateway.getChannelById(it) }).map { it as MessageChannel }.flatMap { it.createMessage(message) }.subscribe()
+	private fun log(message: String) {
+		Flux.merge(channelsToLogTo.map { auriel.getGateway().getChannelById(it) }).doOnError { auriel.getLogger().logError(it) }.map { it as MessageChannel }
+			.flatMap { it.createMessage(message) }.subscribe()
 	}
 	
 	fun logDelete(message: ShallowMessage, reason: String) {
 		log("__**Deleted Message**__\nPosted by ${message.getAuthor().mention} in ${message.getChannel().mention}\n" +
 				"Reason: $reason\nMessage: ||${message.getMessage().content.replace("\n", " **\\n**")}||")
+	}
+	
+	fun logError(message: String) {
+		log("__**Bot Error**__\n${auriel.getWarrenMention()}, fix me, dammit: $message")
 	}
 	
 }

@@ -5,10 +5,11 @@ import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.rest.util.Permission
 import java.io.File
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.function.Consumer
 import java.util.regex.Pattern
 
-class TradeChannelMessageListener(private val messageListener: MessageListener, private val channelId: Snowflake, private var isBuy: Boolean) : Consumer<ShallowMessage> {
+class TradeChannelMessageListener(private val auriel: Auriel, private val channelId: Snowflake, private var isBuy: Boolean) : Consumer<ShallowMessage> {
 	
 	companion object {
 		
@@ -61,9 +62,11 @@ class TradeChannelMessageListener(private val messageListener: MessageListener, 
 			!it.getAuthorPermissions().contains(Permission.MANAGE_MESSAGES) }
 	
 	init {
-		messageListener.getGateway().getChannelById(channelId).filter { it is MessageChannel }.map { it as MessageChannel }.flatMapMany { it.getMessagesBefore(Snowflake.of(Instant.now())) }
-			.map { ShallowMessage(it) }.filter(predicate).subscribe { msg ->
-				if (usersLastMessage.containsKey(msg.getAuthor().id)) msg.delete()
+		val threeDaysAgo = Instant.now().minus(3, ChronoUnit.DAYS)
+		auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.filter { it is MessageChannel }.map { it as MessageChannel }.flatMapMany { it
+			.getMessagesBefore(Snowflake.of(Instant.now())) }
+			.map { ShallowMessage(auriel, it) }.filter(predicate).subscribe { msg ->
+				if (threeDaysAgo.isAfter(msg.getMessage().timestamp) || usersLastMessage.containsKey(msg.getAuthor().id)) msg.delete()
 				else usersLastMessage[msg.getAuthor().id] = msg.getMessage().id
 			}
 	}
@@ -79,19 +82,19 @@ class TradeChannelMessageListener(private val messageListener: MessageListener, 
 			
 			val blacklistMatcher = pattern.matcher(message.getMessage().content)
 			if (isBuy && blacklistMatcher.find()) {
-				messageListener.reply(message, "This is a buy only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
+				auriel.getMessageListener().reply(message, "This is a buy only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
 						" it was deleted. Please make sure that posts in this channel are buy focused and not selling focused. " +
 						"1 for 1 item trades are considered selling posts and should go in the respective selling channel. " +
 						"You will have to wait the cooldown to post another message.", true, 25)
 				return
 			} else if (message.getMessage().content.split('\n').size > maximumLines) {
-				messageListener.reply(message, "You can have at most $maximumLines lines in your post. You will have to wait the cooldown to post " +
+				auriel.getMessageListener().reply(message, "You can have at most $maximumLines lines in your post. You will have to wait the cooldown to post " +
 						"another message with $maximumLines or less lines.", true,	20)
 				return
 			}
 			
 			if (usersLastMessage.containsKey(message.getAuthor().id) && usersLastMessage[message.getAuthor().id]!! != message.getMessage().id) {
-				messageListener.getGateway().getMessageById(channelId, usersLastMessage[message.getAuthor().id]!!).filter { !it.isPinned }.flatMap { it.delete() }.subscribe()
+				auriel.getGateway().getMessageById(channelId, usersLastMessage[message.getAuthor().id]!!).filter { !it.isPinned }.flatMap { it.delete() }.subscribe()
 			}
 			usersLastMessage[message.getAuthor().id] = message.getMessage().id
 			
