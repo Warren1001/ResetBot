@@ -65,7 +65,8 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 	init {
 		val daysAgo = Instant.now().minus(2, ChronoUnit.DAYS)
 		val channel = auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.block() as MessageChannel
-		channel.getMessagesBefore(Snowflake.of(Instant.now())).filter { !it.isPinned }.subscribe { msg ->
+		channel.getMessagesBefore(Snowflake.of(Instant.now())).onErrorContinue { error, o -> auriel.getLogger().logError(error) }.filter { !it.isPinned }
+			.subscribe { msg ->
 			if (msg.content.isNullOrEmpty()) msg.delete().subscribe()
 			else {
 				if (msg.author.isPresent) {
@@ -79,9 +80,8 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 			}
 			
 		}
-		val time = (1000 * 60 * 60).toLong()
-		timer("checkOldPosts", true, time, time) {
-			val channel = auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.block() as MessageChannel
+		timer("checkOldPosts", true, 0, (1000 * 60 * 60).toLong()) {
+			val channel = auriel.getGateway().getChannelById(channelId).onErrorContinue { error, o -> auriel.getLogger().logError(error) }.block() as MessageChannel
 			channel.getMessagesBefore(Snowflake.of(Instant.now().minus(2, ChronoUnit.DAYS))).doOnError { auriel.getLogger().logError(it) }
 				.filter { !it.isPinned }.flatMap { it.delete() }.subscribe()
 		}
