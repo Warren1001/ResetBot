@@ -8,6 +8,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.function.Consumer
 import java.util.regex.Pattern
+import kotlin.concurrent.timer
 
 class TradeChannelMessageListener(private val auriel: Auriel, private val channelId: Snowflake, private var isBuy: Boolean) : Consumer<ShallowMessage> {
 	
@@ -62,16 +63,33 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 			!it.getAuthorPermissions().contains(Permission.MANAGE_MESSAGES) }
 	
 	init {
-		val threeDaysAgo = Instant.now().minus(3, ChronoUnit.DAYS)
-		auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.filter { it is MessageChannel }.map { it as MessageChannel }.flatMapMany { it
-			.getMessagesBefore(Snowflake.of(Instant.now())) }
-			.map { ShallowMessage(auriel, it) }.filter(predicate).subscribe { msg ->
-				if (threeDaysAgo.isAfter(msg.getMessage().timestamp) || usersLastMessage.containsKey(msg.getAuthor().id)) msg.delete()
-				else usersLastMessage[msg.getAuthor().id] = msg.getMessage().id
+		val daysAgo = Instant.now().minus(2, ChronoUnit.DAYS)
+		val channel = auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.block() as MessageChannel
+		channel.getMessagesBefore(Snowflake.of(Instant.now())).filter { !it.isPinned }.subscribe { msg ->
+			if (msg.content.isNullOrEmpty()) msg.delete().subscribe()
+			else {
+				if (msg.author.isPresent) {
+					val author = msg.author.get()
+					if (author.isBot || msg.timestamp.isBefore(daysAgo)) msg.delete().subscribe()
+					else {
+						if (usersLastMessage.containsKey(author.id)) msg.delete().subscribe()
+						else usersLastMessage[author.id] = msg.id
+					}
+				} else msg.delete().subscribe()
 			}
+			
+		}
+		val time = (1000 * 60 * 60).toLong()
+		timer("checkOldPosts", true, time, time) {
+			val channel = auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.block() as MessageChannel
+			channel.getMessagesBefore(Snowflake.of(Instant.now().minus(2, ChronoUnit.DAYS))).doOnError { auriel.getLogger().logError(it) }
+				.filter { !it.isPinned }.flatMap { it.delete() }.subscribe()
+		}
 	}
 	
 	override fun accept(message: ShallowMessage) {
+		
+		if (auriel.getMessageListener().getSwearFilter().checkMessage(message, false, 15)) return
 		
 		val type = message.getMessage().data.type()
 		if (type == 18 || type == 6) {
@@ -82,14 +100,20 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 			
 			val blacklistMatcher = pattern.matcher(message.getMessage().content)
 			if (isBuy && blacklistMatcher.find()) {
-				auriel.getMessageListener().reply(message, "This is a buy only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
+				auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
+				var content = "This is a buy only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
 						" it was deleted. Please make sure that posts in this channel are buy focused and not selling focused. " +
 						"1 for 1 item trades are considered selling posts and should go in the respective selling channel. " +
-						"You will have to wait the cooldown to post another message.", true, 25)
+						"You will have to wait the cooldown to post another message. \n```\n${message.getMessage().content.replace("`", "\\`")}\n```"
+				if (content.length > 2000) content = content.substring(0, 2000)
+				message.getAuthor().privateChannel.flatMap { it.createMessage(content) }.subscribe()
 				return
 			} else if (message.getMessage().content.split('\n').size > maximumLines) {
-				auriel.getMessageListener().reply(message, "You can have at most $maximumLines lines in your post. You will have to wait the cooldown to post " +
-						"another message with $maximumLines or less lines.", true,	20)
+				auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
+				var content = "You can have at most $maximumLines lines in your post. " +
+						"You will have to wait the cooldown to post another message with $maximumLines or less lines.\n```\n${message.getMessage().content.replace("`", "\\`")}\n```"
+				if (content.length > 2000) content = content.substring(0, 2000)
+				message.getAuthor().privateChannel.flatMap { it.createMessage(content) }.subscribe()
 				return
 			}
 			

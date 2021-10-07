@@ -2,6 +2,7 @@ package io.github.warren1001.resetbot
 
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.channel.MessageChannel
+import discord4j.core.`object`.entity.channel.PrivateChannel
 import discord4j.core.event.domain.message.MessageCreateEvent
 import discord4j.core.event.domain.message.MessageDeleteEvent
 import discord4j.core.event.domain.message.MessageEvent
@@ -47,9 +48,13 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 		
 		if (e is MessageDeleteEvent && tradeListeners.containsKey(e.channelId)) {
 			
+			if (e.channel.block()!! is PrivateChannel) return
+			
 			tradeListeners[e.channelId]?.removeMessage(e.messageId)
 			
 		} else if (e is MessageUpdateEvent) {
+			
+			if (e.channel.block()!! is PrivateChannel) return
 			
 			val msg = ShallowMessage(auriel, e.message.block()!!)
 			
@@ -64,18 +69,16 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 			
 		} else if (e is MessageCreateEvent) {
 			
+			if (e.message.channel.block()!! is PrivateChannel) return
+			
 			val msg = ShallowMessage(auriel, e.message)
 			
 			if (msg.getAuthor().isBot || msg.getMessage().content.isNullOrEmpty()) return;
 			
 			if (botFilter.humanCheck(msg)) return
 			
-			if (swearFilter.checkMessage(msg)) {
-				replyDeleted(msg, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
-				return
-			}
-			
 			if (tradeListeners.containsKey(msg.getMessage().channelId)) tradeListeners[msg.getMessage().channelId]?.accept(msg)
+			else if (swearFilter.checkMessage(msg)) return
 			
 			if (msg.getMessage().content[0] != '!' || !msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)) return
 			
@@ -226,9 +229,16 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 				
 				"addswearfilter" -> {
 					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearfilter [filter]")
+					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearfilter [filter] [replacement]")
 					
-					if (swearFilter.addSwearFilterPattern(arguments)) {
+					val split = arguments.split(' ')
+					
+					if (split.size != 2) return reply(msg, "Usage: !addswearfilter [filter] [replacement]")
+					
+					val pattern = split[0]
+					val replacement = split[1]
+					
+					if (swearFilter.addSwearFilterPattern(pattern, replacement)) {
 						reply(msg, "Added '$arguments' pattern to the swear filters list.")
 					} else {
 						reply(msg, "'$arguments' pattern is already on the swear filters list.")
@@ -240,6 +250,7 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 					
 					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !removeswearfilter [filter]")
 					
+					
 					if (swearFilter.removeSwearFilterPattern(arguments)) {
 						reply(msg, "Removed '$arguments' pattern from the swear filters list.")
 					} else {
@@ -250,11 +261,16 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 				
 				"addswearword" -> {
 					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearword [word]")
+					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearword [word] [replacement]")
 					
-					val pattern = swearFilter.constructBasicPattern(arguments)
+					val split = arguments.split(' ')
 					
-					if (swearFilter.addSwearFilterPattern(pattern)) {
+					if (split.size != 2) return reply(msg, "Usage: !addswearword [word] [replacement]")
+					
+					val pattern = swearFilter.constructBasicPattern(split[0])
+					val replacement = split[1]
+					
+					if (swearFilter.addSwearFilterPattern(pattern, replacement)) {
 						reply(msg, "Added '$pattern' pattern to the swear filters list.")
 					} else {
 						reply(msg, "'$pattern' pattern is already on the swear filters list.")
@@ -310,9 +326,20 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 		
 	}
 	
+	fun getBotFilter(): BotFilter {
+		return botFilter
+	}
+	
+	fun getSwearFilter(): SwearFilter {
+		return swearFilter
+	}
+	
 	fun replyDeleted(message: ShallowMessage, msg: String, duration: Long = -1L) {
 		
-		val specBuilder = MessageCreateSpec.builder().content("${message.getAuthor().mention}, $msg")
+		var content = "${message.getAuthor().mention}, $msg"
+		if (content.length > 2000) content = content.substring(0, 2000)
+		
+		val specBuilder = MessageCreateSpec.builder().content(content)
 		
 		message.getChannel().createMessage(specBuilder.build()).subscribe {
 			if (duration != -1L) it.delete().delaySubscription(Duration.ofSeconds(duration)).subscribe()
@@ -323,14 +350,18 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	fun reply(message: ShallowMessage, msg: String, delete: Boolean = false, duration: Long = -1L) {
 		
 		val specBuilder = MessageCreateSpec.builder()
+		var content = msg
 		
 		if (delete) {
 			
-			specBuilder.content("${message.getAuthor().mention}, $msg")
+			content = "${message.getAuthor().mention}, $msg"
 			message.delete()
 			
-		} else specBuilder.messageReference(message.getMessage().id).content(msg)
+		} else specBuilder.messageReference(message.getMessage().id)
 		
+		if (content.length > 2000) content = content.substring(0, 2000)
+		
+		specBuilder.content(content)
 		message.getChannel().createMessage(specBuilder.build()).subscribe {
 			if (duration != -1L) it.delete().delaySubscription(Duration.ofSeconds(duration)).subscribe()
 		}

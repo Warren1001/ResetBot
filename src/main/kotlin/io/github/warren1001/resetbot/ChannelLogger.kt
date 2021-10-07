@@ -40,7 +40,11 @@ class ChannelLogger(private val auriel: Auriel) {
 	
 	private fun log(message: String) {
 		Flux.merge(channelsToLogTo.map { auriel.getGateway().getChannelById(it) }).doOnError { auriel.getLogger().logError(it) }.map { it as MessageChannel }
-			.flatMap { it.createMessage(message) }.subscribe()
+			.flatMap {
+				var content = message
+				if (content.length > 2000) content = content.substring(0, 2000)
+				return@flatMap it.createMessage(content)
+			}.subscribe()
 	}
 	
 	fun logDelete(message: ShallowMessage, reason: String) {

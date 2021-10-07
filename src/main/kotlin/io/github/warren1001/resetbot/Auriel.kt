@@ -64,6 +64,7 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 	}
 	
 	fun stop() {
+		messageListener.getBotFilter().setOfflineMessage()
 		gateway.logout().subscribe()
 		logger.stop()
 	}
