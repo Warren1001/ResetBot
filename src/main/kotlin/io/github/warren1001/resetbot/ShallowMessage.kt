@@ -21,9 +21,6 @@ class ShallowMessage {
 		this.author = message.author.get()
 	}
 	
-	@Deprecated("replace with constructor(Auriel, Message, MessageChannel)")
-	constructor(auriel: Auriel, message: Message): this(auriel, message, message.channel.doOnError { auriel.getLogger().logError(it) }.block()!!)
-	
 	fun delete() {
 		if (!deleted) {
 			deleted = true
@@ -36,6 +33,14 @@ class ShallowMessage {
 			deleted = true
 			message.delete().doOnError { auriel.getLogger().logError(it) }.doOnSuccess { action.invoke(this) }.subscribe()
 		} else action.invoke(this)
+	}
+	
+	fun isModerator(): Boolean {
+		return auriel.getUserManager().isModerator(author.id)
+	}
+	
+	fun isAdministrator(): Boolean {
+		return auriel.getUserManager().isAdministrator(author.id)
 	}
 	
 }

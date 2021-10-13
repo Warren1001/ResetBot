@@ -4,33 +4,45 @@ import discord4j.common.util.Snowflake
 
 class UserManager(private val auriel: Auriel) {
 	
+	companion object {
+		val EVERYONE = 0
+		val MODERATOR = 5
+		val ADMINISTRATOR = 10
+	}
+	
+	
 	private val adminRoleId: Snowflake = Snowflake.of(if (auriel.getJson().has("users.role-id.admin")) auriel.getJson()["users.role-id.admin"].asLong else 0L)
 	private val modRoleId: Snowflake = Snowflake.of(if (auriel.getJson().has("users.role-id.mod")) auriel.getJson()["users.role-id.mod"].asLong else 0L)
 	private val mods = mutableSetOf<Snowflake>()
 	private val admins = mutableSetOf<Snowflake>()
+	private val permissions = mutableMapOf<Snowflake, Int>()
 	
 	fun addModerator(id: Snowflake) {
 		mods.add(id)
 	}
 	
-	fun addAdmin(id: Snowflake) {
-		admins.add(id)
-	}
-	
 	fun removeModerator(id: Snowflake) {
-		mods.remove(id)
+		permissions[id] = MODERATOR
 	}
 	
-	fun removeAdmin(id: Snowflake) {
-		admins.remove(id)
+	fun addAdministrator(id: Snowflake) {
+		permissions[id] = ADMINISTRATOR
+	}
+	
+	fun remove(id: Snowflake) {
+		permissions.remove(id)
+	}
+	
+	fun hasPermission(id: Snowflake, permission: Int): Boolean {
+		return permissions.getOrDefault(id, 0) >= permission
 	}
 	
 	fun isModerator(id: Snowflake): Boolean {
-		return mods.contains(id)
+		return hasPermission(id, MODERATOR)
 	}
 	
-	fun isAdmin(id: Snowflake): Boolean {
-		return admins.contains(id)
+	fun isAdministrator(id: Snowflake): Boolean {
+		return hasPermission(id, ADMINISTRATOR)
 	}
 	
 	fun isModRole(id: Snowflake): Boolean {

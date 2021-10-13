@@ -20,6 +20,7 @@ class ChannelLogger(private val auriel: Auriel) {
 	
 	fun addLogChannel(id: Snowflake): Boolean {
 		if (channelsToLogTo.contains(id)) return false
+		auriel.getJson().
 		if (channelsToLogTo.isEmpty()) {
 			logChannelsFile.writeText(id.asString())
 		} else {
@@ -48,8 +49,8 @@ class ChannelLogger(private val auriel: Auriel) {
 	}
 	
 	fun logDelete(message: ShallowMessage, reason: String) {
-		log("__**Deleted Message**__\nPosted by ${message.author.mention} in ${message.getChannel().mention}\n" +
-				"Reason: $reason\nMessage: ||${message.getMessage().content.replace("\n", " **\\n**")}||")
+		log("__**Deleted Message**__\nPosted by ${message.author.mention} in ${message.channel.mention}\n" +
+				"Reason: $reason\nMessage: ||${message.message.content.replace("\n", " **\\n**")}||")
 	}
 	
 	fun logError(message: String) {

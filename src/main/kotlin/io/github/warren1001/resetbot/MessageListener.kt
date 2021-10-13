@@ -1,6 +1,5 @@
 package io.github.warren1001.resetbot
 
-import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.channel.PrivateChannel
 import discord4j.core.event.domain.message.MessageCreateEvent
 import discord4j.core.event.domain.message.MessageDeleteEvent
@@ -18,20 +17,13 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	private val swearFilter = SwearFilter(auriel)
 	private val botFilter = BotFilter(auriel)
 	private val commandManager = CommandManager(auriel)
-	
-	private val tradeListeners = mutableMapOf<Snowflake, TradeChannelMessageListener>()
+	private val tradeChannelListener = TradeChannelCommand(auriel)
 	
 	init {
-		val array = auriel.getJson()["trade.channels"]
-		if (array != null && array.isJsonArray) {
-			array.asJsonArray.map { it.asJsonObject }.forEach { jsonObject ->
-				val id = Snowflake.of(jsonObject["id"].asLong)
-				tradeListeners[id] = TradeChannelMessageListener(auriel, id, jsonObject["isBuy"].asBoolean)
-			}
-		}
 		
-		commandManager.registerCommand("ping") { reply(it.msg, "Pong.", true, 5) }
-		commandManager.registerCommand("imamod") { ctx ->
+		
+		commandManager.registerCommand("ping", UserManager.MODERATOR) { reply(it.msg, "Pong.", true, 5) }
+		commandManager.registerCommand("imamod", UserManager.MODERATOR) { ctx ->
 			ctx.msg.message.authorAsMember.flatMap { member -> member.basePermissions.map { Tuples.of(member, it) } }.filter { it.t2.contains(Permission.BAN_MEMBERS) }.subscribe {
 				auriel.getUserManager().addModerator(it.t1.id)
 				reply(ctx.msg, "fine.", true, 10L)
@@ -39,257 +31,238 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 		}
 		commandManager.registerCommand("imadmin") { ctx ->
 			ctx.msg.message.authorAsMember.flatMap { member -> member.basePermissions.map { Tuples.of(member, it) } }.filter { it.t2.contains(Permission.ADMINISTRATOR) }.subscribe {
-				auriel.getUserManager().addModerator(it.t1.id)
+				auriel.getUserManager().addAdministrator(it.t1.id)
 				reply(ctx.msg, "fine.", true, 10L)
 			}
 		}
+		commandManager.registerCommand("stop") { ctx ->
+			reply(ctx.msg, "Bye!")
+			auriel.stop()
+		}
+		commandManager.registerCommand("tc", action = tradeChannelListener)
 		
 	}
 	
 	override fun accept(e: MessageEvent) {
 		
-		if (e is MessageDeleteEvent && tradeListeners.containsKey(e.channelId)) {
-			
-			e.channel.filter { it !is PrivateChannel }.subscribe { tradeListeners[e.channelId]?.removeMessage(e.messageId) }
-			
-		} else if (e is MessageUpdateEvent) {
-			
-			Flux.combineLatest(e.channel, e.message, Tuples::of).filter { it.t1 !is PrivateChannel && it.t2.author.isPresent }.map { ShallowMessage(auriel, it.t2, it.t1) }.subscribe {
+		when (e) {
+			is MessageDeleteEvent -> {
 				
-				if (swearFilter.checkMessage(it)) replyDeleted(it, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
-				else if (!it.author.isBot) tradeListeners[it.message.channelId]?.accept(it)
+				tradeChannelListener.remove(e.channelId, e.messageId)
 				
 			}
-			
-		} else if (e is MessageCreateEvent) {
-			
-			e.message.channel.filter { it !is PrivateChannel }.map { Tuples.of(it, e.message) }.filter { it.t2.author.isPresent && !it.t2.author.get().isBot && !it.t2.content.isNullOrEmpty() }
-				.map { ShallowMessage(auriel, it.t2, it.t1) }.filter { !commandManager.handle(it) && !botFilter.humanCheck(it) }.subscribe {
+			is MessageUpdateEvent -> {
+				
+				Flux.combineLatest(e.channel, e.message, Tuples::of).filter { it.t1 !is PrivateChannel && it.t2.author.isPresent }.map { ShallowMessage(auriel, it.t2, it.t1) }.subscribe {
 					
-					if (tradeListeners.containsKey(it.message.channelId)) tradeListeners[it.message.channelId]?.accept(it)
-					else swearFilter.checkMessage(it)
+					if (swearFilter.checkMessage(it)) replyDeleted(it, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
+					else if (!it.author.isBot) tradeChannelListener.handle(it)
 					
 				}
-			
-			/*if (e.message.channel.block()!! is PrivateChannel) return
-			
-			val msg = ShallowMessage(auriel, e.message)
-			
-			if (msg.author.isBot || msg.getMessage().content.isNullOrEmpty()) return;
-			
-			if (botFilter.humanCheck(msg) || commandManager.handle(msg)) return
-			
-			if (tradeListeners.containsKey(msg.getMessage().channelId)) tradeListeners[msg.getMessage().channelId]?.accept(msg)
-			else if (swearFilter.checkMessage(msg)) return
-			
-			if (msg.getMessage().content[0] != '!'/* || !msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)*/ || msg.author.id != Snowflake.of(164118147073310721)) return
-			
-			val contents = msg.getMessage().content.substring(1)
-			val args = contents.split(' ', limit = 2)
-			val command = args[0]
-			val arguments = if (args.size == 1) null else args[1]
-			val channelId = msg.getMessage().channelId
-			
-			when (command.lowercase()) {
 				
-				"stop" -> {
-					reply(msg, "Bye!")
-					auriel.stop()
-				}
+			}
+			is MessageCreateEvent -> {
 				
-				"settradechannel" -> {
-					tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, false)
-					if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},false")
-					else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},false")
-					reply(msg, "This channel has been set as a trade channel.", true, 5)
-				}
-				
-				"removetradechannel" -> {
-					tradeListeners.remove(channelId)
-					val list = tradeChannelsFile.readLines().toMutableList()
-					list.removeIf { it.startsWith(channelId.asString()) }
-					tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
-					reply(msg, "This channel has been removed as a trade channel.", true, 5)
-				}
-				
-				"setbuychannel" -> {
-					
-					if (tradeListeners.containsKey(channelId)) {
+				e.message.channel.filter { it !is PrivateChannel }.map { Tuples.of(it, e.message) }.filter { it.t2.author.isPresent && !it.t2.author.get().isBot && !it.t2.content.isNullOrEmpty() }
+					.map { ShallowMessage(auriel, it.t2, it.t1) }.filter { !commandManager.handle(it) && !botFilter.humanCheck(it.message) }.subscribe {
 						
-						if (tradeListeners[channelId]?.setIsBuy(true) == true) {
+						if (tradeChannelListener.isTradeChannel(it.message.channelId)) tradeChannelListener.handle(it)
+						else swearFilter.checkMessage(it)
+						
+					}
+				
+				/*
+					
+					"settradechannel" -> {
+						tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, false)
+						if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},false")
+						else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},false")
+						reply(msg, "This channel has been set as a trade channel.", true, 5)
+					}
+					
+					"removetradechannel" -> {
+						tradeListeners.remove(channelId)
+						val list = tradeChannelsFile.readLines().toMutableList()
+						list.removeIf { it.startsWith(channelId.asString()) }
+						tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+						reply(msg, "This channel has been removed as a trade channel.", true, 5)
+					}
+					
+					"setbuychannel" -> {
+						
+						if (tradeListeners.containsKey(channelId)) {
 							
-							val list = tradeChannelsFile.readLines().toMutableList()
-							list.remove("${channelId.asString()},false")
-							list.add("${channelId.asString()},true")
-							tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+							if (tradeListeners[channelId]?.setIsBuy(true) == true) {
+								
+								val list = tradeChannelsFile.readLines().toMutableList()
+								list.remove("${channelId.asString()},false")
+								list.add("${channelId.asString()},true")
+								tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+								reply(msg, "This channel has been set as a buy channel.", true, 5)
+								
+							} else reply(msg, "This channel is already a buy channel!", true, 5)
+							
+						} else {
+							
+							tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, true)
+							if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},true")
+							else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},true")
 							reply(msg, "This channel has been set as a buy channel.", true, 5)
 							
-						} else reply(msg, "This channel is already a buy channel!", true, 5)
-						
-					} else {
-						
-						tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, true)
-						if (tradeChannelsFile.readLines().isEmpty()) tradeChannelsFile.writeText("${channelId.asString()},true")
-						else tradeChannelsFile.appendText(System.lineSeparator() + "${channelId.asString()},true")
-						reply(msg, "This channel has been set as a buy channel.", true, 5)
+						}
 						
 					}
 					
-				}
-				
-				"removebuychannel" -> {
-					
-					if (tradeListeners.containsKey(channelId) && tradeListeners[channelId]?.setIsBuy(false) == true) {
+					"removebuychannel" -> {
 						
-						val list = tradeChannelsFile.readLines().toMutableList()
-						list.remove("${channelId.asString()},true")
-						list.add("${channelId.asString()},false")
-						tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
-						reply(msg, "This channel has been removed as a buy channel.", true, 5)
+						if (tradeListeners.containsKey(channelId) && tradeListeners[channelId]?.setIsBuy(false) == true) {
+							
+							val list = tradeChannelsFile.readLines().toMutableList()
+							list.remove("${channelId.asString()},true")
+							list.add("${channelId.asString()},false")
+							tradeChannelsFile.writeText(list.joinToString(separator = System.lineSeparator()))
+							reply(msg, "This channel has been removed as a buy channel.", true, 5)
+							
+						} else reply(msg, "This channel is already not a buy channel!", true, 5)
 						
-					} else reply(msg, "This channel is already not a buy channel!", true, 5)
-					
-				}
-				
-				"addbuychannelblacklistword" -> {
-					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addbuychannelblacklistword [word]")
-					
-					if (TradeChannelMessageListener.addBlacklistWord(arguments)) {
-						reply(msg, "Added '$arguments' as a buy channel blacklist word.")
-					} else {
-						reply(msg, "'$arguments' is already a buy channel blacklist word.")
 					}
 					
-				}
-				
-				"removebuychannelblacklistword" -> {
-					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !removebuychannelblacklistword [word]")
-					
-					if (TradeChannelMessageListener.removeBlacklistWord(arguments)) {
-						reply(msg, "Removed '$arguments' as a buy channel blacklist word.")
-					} else {
-						reply(msg, "'$arguments' is not a buy channel blacklist word.")
+					"addbuychannelblacklistword" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addbuychannelblacklistword [word]")
+						
+						if (TradeChannelMessageListener.addBlacklistWord(arguments)) {
+							reply(msg, "Added '$arguments' as a buy channel blacklist word.")
+						} else {
+							reply(msg, "'$arguments' is already a buy channel blacklist word.")
+						}
+						
 					}
 					
-				}
-				
-				"setlogchannel" -> {
-					
-					if (auriel.getLogger().getChannelLogger().addLogChannel(channelId)) {
-						reply(msg, "This channel has been added as a logging channel.", true, 5)
-					} else {
-						reply(msg, "This channel is already a logging channel.", true, 5)
+					"removebuychannelblacklistword" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !removebuychannelblacklistword [word]")
+						
+						if (TradeChannelMessageListener.removeBlacklistWord(arguments)) {
+							reply(msg, "Removed '$arguments' as a buy channel blacklist word.")
+						} else {
+							reply(msg, "'$arguments' is not a buy channel blacklist word.")
+						}
+						
 					}
 					
-				}
-				
-				"removelogchannel" -> {
-					
-					if (auriel.getLogger().getChannelLogger().removeLogChannel(channelId)) {
-						reply(msg, "This channel has been removed as a logging channel.", true, 5)
-					} else {
-						reply(msg, "This channel is not a logging channel.", true, 5)
+					"setlogchannel" -> {
+						
+						if (auriel.getLogger().getChannelLogger().addLogChannel(channelId)) {
+							reply(msg, "This channel has been added as a logging channel.", true, 5)
+						} else {
+							reply(msg, "This channel is already a logging channel.", true, 5)
+						}
+						
 					}
 					
-				}
-				
-				"addswearfilter" -> {
-					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearfilter [filter] [replacement]")
-					
-					val split = arguments.split(' ')
-					
-					if (split.size != 2) return reply(msg, "Usage: !addswearfilter [filter] [replacement]")
-					
-					val pattern = split[0]
-					val replacement = split[1]
-					
-					if (swearFilter.addSwearFilterPattern(pattern, replacement)) {
-						reply(msg, "Added '$arguments' pattern to the swear filters list.")
-					} else {
-						reply(msg, "'$arguments' pattern is already on the swear filters list.")
+					"removelogchannel" -> {
+						
+						if (auriel.getLogger().getChannelLogger().removeLogChannel(channelId)) {
+							reply(msg, "This channel has been removed as a logging channel.", true, 5)
+						} else {
+							reply(msg, "This channel is not a logging channel.", true, 5)
+						}
+						
 					}
 					
-				}
-				
-				"removeswearfilter" -> {
-					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !removeswearfilter [filter]")
-					
-					
-					if (swearFilter.removeSwearFilterPattern(arguments)) {
-						reply(msg, "Removed '$arguments' pattern from the swear filters list.")
-					} else {
-						reply(msg, "'$arguments' pattern is not on the swear filters list.")
+					"addswearfilter" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearfilter [filter] [replacement]")
+						
+						val split = arguments.split(' ')
+						
+						if (split.size != 2) return reply(msg, "Usage: !addswearfilter [filter] [replacement]")
+						
+						val pattern = split[0]
+						val replacement = split[1]
+						
+						if (swearFilter.addSwearFilterPattern(pattern, replacement)) {
+							reply(msg, "Added '$arguments' pattern to the swear filters list.")
+						} else {
+							reply(msg, "'$arguments' pattern is already on the swear filters list.")
+						}
+						
 					}
 					
-				}
-				
-				"addswearword" -> {
-					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearword [word] [replacement]")
-					
-					val split = arguments.split(' ')
-					
-					if (split.size != 2) return reply(msg, "Usage: !addswearword [word] [replacement]")
-					
-					val pattern = swearFilter.constructBasicPattern(split[0])
-					val replacement = split[1]
-					
-					if (swearFilter.addSwearFilterPattern(pattern, replacement)) {
-						reply(msg, "Added '$pattern' pattern to the swear filters list.")
-					} else {
-						reply(msg, "'$pattern' pattern is already on the swear filters list.")
+					"removeswearfilter" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !removeswearfilter [filter]")
+						
+						
+						if (swearFilter.removeSwearFilterPattern(arguments)) {
+							reply(msg, "Removed '$arguments' pattern from the swear filters list.")
+						} else {
+							reply(msg, "'$arguments' pattern is not on the swear filters list.")
+						}
+						
 					}
 					
-				}
-				
-				"removeswearword" -> {
-					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !removeswearword [word]")
-					
-					val pattern = swearFilter.constructBasicPattern(arguments)
-					
-					if (swearFilter.removeSwearFilterPattern(pattern)) {
-						reply(msg, "Removed '$pattern' pattern from the swear filters list.")
-					} else {
-						reply(msg, "'$pattern' pattern is not on the swear filters list.")
+					"addswearword" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !addswearword [word] [replacement]")
+						
+						val split = arguments.split(' ')
+						
+						if (split.size != 2) return reply(msg, "Usage: !addswearword [word] [replacement]")
+						
+						val pattern = swearFilter.constructBasicPattern(split[0])
+						val replacement = split[1]
+						
+						if (swearFilter.addSwearFilterPattern(pattern, replacement)) {
+							reply(msg, "Added '$pattern' pattern to the swear filters list.")
+						} else {
+							reply(msg, "'$pattern' pattern is already on the swear filters list.")
+						}
+						
 					}
 					
-				}
-				
-				"swearfilterlist" -> {
-					reply(msg, "Here are the swear filters currently in place:\n${swearFilter.getListOfPatterns()}")
-				}
-				
-				"sethumanroleid" -> {
+					"removeswearword" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !removeswearword [word]")
+						
+						val pattern = swearFilter.constructBasicPattern(arguments)
+						
+						if (swearFilter.removeSwearFilterPattern(pattern)) {
+							reply(msg, "Removed '$pattern' pattern from the swear filters list.")
+						} else {
+							reply(msg, "'$pattern' pattern is not on the swear filters list.")
+						}
+						
+					}
 					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !sethumanroleid [id]")
+					"swearfilterlist" -> {
+						reply(msg, "Here are the swear filters currently in place:\n${swearFilter.getListOfPatterns()}")
+					}
 					
-					botFilter.setHumanRoleId(Snowflake.of(arguments))
-					reply(msg, "Set $arguments ID as the human role.", true, 10)
+					"sethumanroleid" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !sethumanroleid [id]")
+						
+						botFilter.setHumanRoleId(Snowflake.of(arguments))
+						reply(msg, "Set $arguments ID as the human role.", true, 10)
+						
+					}
 					
-				}
+					"sethumanchannelid" -> {
+						
+						if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !sethumanchannelid [id]")
+						
+						botFilter.setHumanChannelId(Snowflake.of(arguments))
+						reply(msg, "Set $arguments ID as the human channel.", true, 10)
+						
+					}
+					
+					else -> auriel.info("'$contents' is not a valid command.")
+					
+				}*/
 				
-				"sethumanchannelid" -> {
-					
-					if (arguments.isNullOrEmpty()) return reply(msg, "Usage: !sethumanchannelid [id]")
-					
-					botFilter.setHumanChannelId(Snowflake.of(arguments))
-					reply(msg, "Set $arguments ID as the human channel.", true, 10)
-					
-				}
-				
-				"ping" -> {
-					reply(msg, "Pong.", true, 5)
-				}
-				
-				else -> auriel.info("'$contents' is not a valid command.")
-				
-			}*/
-			
+			}
 		}
 		
 	}
