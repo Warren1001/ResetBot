@@ -1,7 +1,6 @@
 package io.github.warren1001.resetbot
 
 import discord4j.common.util.Snowflake
-import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.`object`.entity.channel.PrivateChannel
 import discord4j.core.event.domain.message.MessageCreateEvent
 import discord4j.core.event.domain.message.MessageDeleteEvent
@@ -9,7 +8,8 @@ import discord4j.core.event.domain.message.MessageEvent
 import discord4j.core.event.domain.message.MessageUpdateEvent
 import discord4j.core.spec.MessageCreateSpec
 import discord4j.rest.util.Permission
-import java.io.File
+import reactor.core.publisher.Flux
+import reactor.util.function.Tuples
 import java.time.Duration
 import java.util.function.Consumer
 
@@ -17,30 +17,32 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	
 	private val swearFilter = SwearFilter(auriel)
 	private val botFilter = BotFilter(auriel)
+	private val commandManager = CommandManager(auriel)
 	
 	private val tradeListeners = mutableMapOf<Snowflake, TradeChannelMessageListener>()
-	private val tradeChannelsFile = File("tradeChannels.txt")
-	
-	/*private val teams = mutableMapOf<String, Team>()
-	private var lastTeamNumberSC: Int = 1
-	private var lastTeamNumberHC: Int = 1*/
 	
 	init {
-		
-		/* TODO store the teams somewhere
-		if (teams.isEmpty()) {
-			var teamName = "SC-" + lastTeamNumberSC++
-			teams[teamName.lowercase()] = Team(teamName, true)
-			teamName = "HC-" + lastTeamNumberHC++
-			teams[teamName.lowercase()] = Team(teamName, false)
-		}*/
-		
-		if (tradeChannelsFile.exists()) tradeChannelsFile.forEachLine {
-			val args = it.split(',', limit = 2)
-			auriel.getGateway().getChannelById(Snowflake.of(args[0])).doOnError { auriel.getLogger().logError(it) }.filter { it is MessageChannel }.map { it as MessageChannel }.map { it.id }
-				.subscribe { tradeListeners[it] = TradeChannelMessageListener(auriel, it, args[1] == "true") }
+		val array = auriel.getJson()["trade.channels"]
+		if (array != null && array.isJsonArray) {
+			array.asJsonArray.map { it.asJsonObject }.forEach { jsonObject ->
+				val id = Snowflake.of(jsonObject["id"].asLong)
+				tradeListeners[id] = TradeChannelMessageListener(auriel, id, jsonObject["isBuy"].asBoolean)
+			}
 		}
-		else tradeChannelsFile.createNewFile()
+		
+		commandManager.registerCommand("ping") { reply(it.msg, "Pong.", true, 5) }
+		commandManager.registerCommand("imamod") { ctx ->
+			ctx.msg.message.authorAsMember.flatMap { member -> member.basePermissions.map { Tuples.of(member, it) } }.filter { it.t2.contains(Permission.BAN_MEMBERS) }.subscribe {
+				auriel.getUserManager().addModerator(it.t1.id)
+				reply(ctx.msg, "fine.", true, 10L)
+			}
+		}
+		commandManager.registerCommand("imadmin") { ctx ->
+			ctx.msg.message.authorAsMember.flatMap { member -> member.basePermissions.map { Tuples.of(member, it) } }.filter { it.t2.contains(Permission.ADMINISTRATOR) }.subscribe {
+				auriel.getUserManager().addModerator(it.t1.id)
+				reply(ctx.msg, "fine.", true, 10L)
+			}
+		}
 		
 	}
 	
@@ -48,39 +50,39 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 		
 		if (e is MessageDeleteEvent && tradeListeners.containsKey(e.channelId)) {
 			
-			if (e.channel.block()!! is PrivateChannel) return
-			
-			tradeListeners[e.channelId]?.removeMessage(e.messageId)
+			e.channel.filter { it !is PrivateChannel }.subscribe { tradeListeners[e.channelId]?.removeMessage(e.messageId) }
 			
 		} else if (e is MessageUpdateEvent) {
 			
-			if (e.channel.block()!! is PrivateChannel) return
-			
-			val msg = ShallowMessage(auriel, e.message.block()!!)
-			
-			if (swearFilter.checkMessage(msg)) {
-				replyDeleted(msg, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
-			} else {
-				val channelId = msg.getMessage().channelId
-				if (!msg.getAuthor().isBot && tradeListeners.containsKey(channelId)) {
-					tradeListeners[channelId]?.accept(msg)
-				}
+			Flux.combineLatest(e.channel, e.message, Tuples::of).filter { it.t1 !is PrivateChannel && it.t2.author.isPresent }.map { ShallowMessage(auriel, it.t2, it.t1) }.subscribe {
+				
+				if (swearFilter.checkMessage(it)) replyDeleted(it, "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)")
+				else if (!it.author.isBot) tradeListeners[it.message.channelId]?.accept(it)
+				
 			}
 			
 		} else if (e is MessageCreateEvent) {
 			
-			if (e.message.channel.block()!! is PrivateChannel) return
+			e.message.channel.filter { it !is PrivateChannel }.map { Tuples.of(it, e.message) }.filter { it.t2.author.isPresent && !it.t2.author.get().isBot && !it.t2.content.isNullOrEmpty() }
+				.map { ShallowMessage(auriel, it.t2, it.t1) }.filter { !commandManager.handle(it) && !botFilter.humanCheck(it) }.subscribe {
+					
+					if (tradeListeners.containsKey(it.message.channelId)) tradeListeners[it.message.channelId]?.accept(it)
+					else swearFilter.checkMessage(it)
+					
+				}
+			
+			/*if (e.message.channel.block()!! is PrivateChannel) return
 			
 			val msg = ShallowMessage(auriel, e.message)
 			
-			if (msg.getAuthor().isBot || msg.getMessage().content.isNullOrEmpty()) return;
+			if (msg.author.isBot || msg.getMessage().content.isNullOrEmpty()) return;
 			
-			if (botFilter.humanCheck(msg)) return
+			if (botFilter.humanCheck(msg) || commandManager.handle(msg)) return
 			
 			if (tradeListeners.containsKey(msg.getMessage().channelId)) tradeListeners[msg.getMessage().channelId]?.accept(msg)
 			else if (swearFilter.checkMessage(msg)) return
 			
-			if (msg.getMessage().content[0] != '!' || !msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)) return
+			if (msg.getMessage().content[0] != '!'/* || !msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)*/ || msg.author.id != Snowflake.of(164118147073310721)) return
 			
 			val contents = msg.getMessage().content.substring(1)
 			val args = contents.split(' ', limit = 2)
@@ -94,40 +96,6 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 					reply(msg, "Bye!")
 					auriel.stop()
 				}
-				
-				/*"join" -> {
-					
-					if (arguments == null) return reply(msg, "Usage: !join [team_name] [build name]")
-					
-					args = arguments.split(' ', limit = 2)
-					
-					if (args.size < 2) return reply(msg, "Usage: !join [team_name] [build name]")
-					
-					val team = teams[args[0].lowercase()] ?: return reply(msg, "There is no team named '${args[0]}' (case not sensitive).");
-					
-					if (team.isFull()) return reply(msg, "Team '${team.teamName}' is full, choose another team.")
-					
-					team.addUser(msg.getAuthor().id, args[1])
-					reply(msg, "You have joined Team ${team.teamName}!")
-					createNewTeamIfNeeded(team.softcore)
-					
-				}
-				
-				"leave" -> {
-					
-					if (arguments == null) return reply(msg, "Usage: !leave [team_name]")
-					
-					val team = teams[arguments.lowercase()] ?: return reply(msg, "There is no team named '$arguments' (case not sensitive).");
-					
-					if (team.removeUser(msg.getAuthor().id)) {
-						reply(msg, "You have been removed from Team '${team.teamName}'.")
-					} else {
-						reply(msg, "You are not in Team '${team.teamName}'.")
-					}
-					
-				}
-				
-				"list" -> reply(msg, createPrettyTeamList())*/
 				
 				"settradechannel" -> {
 					tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, false)
@@ -320,7 +288,7 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 				
 				else -> auriel.info("'$contents' is not a valid command.")
 				
-			}
+			}*/
 			
 		}
 		
@@ -336,12 +304,12 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	
 	fun replyDeleted(message: ShallowMessage, msg: String, duration: Long = -1L) {
 		
-		var content = "${message.getAuthor().mention}, $msg"
+		var content = "${message.author.mention}, $msg"
 		if (content.length > 2000) content = content.substring(0, 2000)
 		
 		val specBuilder = MessageCreateSpec.builder().content(content)
 		
-		message.getChannel().createMessage(specBuilder.build()).subscribe {
+		message.channel.createMessage(specBuilder.build()).subscribe {
 			if (duration != -1L) it.delete().delaySubscription(Duration.ofSeconds(duration)).subscribe()
 		}
 		
@@ -354,30 +322,19 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 		
 		if (delete) {
 			
-			content = "${message.getAuthor().mention}, $msg"
+			content = "${message.author.mention}, $msg"
 			message.delete()
 			
-		} else specBuilder.messageReference(message.getMessage().id)
+		} else specBuilder.messageReference(message.message.id)
 		
 		if (content.length > 2000) content = content.substring(0, 2000)
 		
 		specBuilder.content(content)
-		message.getChannel().createMessage(specBuilder.build()).subscribe {
+		message.channel.createMessage(specBuilder.build()).subscribe {
 			if (duration != -1L) it.delete().delaySubscription(Duration.ofSeconds(duration)).subscribe()
 		}
 		
 	}
-	
-	/*private fun createNewTeamIfNeeded(softcore: Boolean) {
-		if (teams.filter { it.value.softcore == softcore }.all { it.value.isFull() }) {
-			val teamName = (if (softcore) "SC" else "HC") + "-" + (if (softcore) lastTeamNumberSC++ else lastTeamNumberHC++)
-			teams[teamName.lowercase()] = Team(teamName, softcore)
-		}
-	}
-	
-	private fun createPrettyTeamList(): String {
-		return teams.map { it.value.teamName }.joinToString(separator = ", ")
-	}*/
 	
 	fun delete(message: ShallowMessage, reason: String) {
 		message.delete { auriel.getLogger().logDelete(it, reason) }

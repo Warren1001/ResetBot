@@ -48,7 +48,7 @@ class ChannelLogger(private val auriel: Auriel) {
 	}
 	
 	fun logDelete(message: ShallowMessage, reason: String) {
-		log("__**Deleted Message**__\nPosted by ${message.getAuthor().mention} in ${message.getChannel().mention}\n" +
+		log("__**Deleted Message**__\nPosted by ${message.author.mention} in ${message.getChannel().mention}\n" +
 				"Reason: $reason\nMessage: ||${message.getMessage().content.replace("\n", " **\\n**")}||")
 	}
 	

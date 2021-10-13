@@ -3,7 +3,6 @@ package io.github.warren1001.resetbot
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.spec.MessageEditSpec
-import discord4j.rest.util.Permission
 import java.io.File
 import java.time.Instant
 import kotlin.concurrent.timer
@@ -17,8 +16,6 @@ class BotFilter(private val auriel: Auriel) {
 	private var humanRoleId: Snowflake? = null
 	private val humanChannelIdFile = File("humanChannelId.txt")
 	private var humanChannelId: Snowflake? = null
-	private var humanChannel: MessageChannel? = null
-	private var lastAnnoyWarrenTime = 0L
 	private val botMessageFile = File("botFilterMessageId.txt")
 	private var botMessageId: Snowflake? = null
 	private var botMessage: ShallowMessage? = null
@@ -56,16 +53,14 @@ class BotFilter(private val auriel: Auriel) {
 	}
 	
 	fun humanCheck(msg: ShallowMessage): Boolean {
-		if ((humanRoleId == null || humanChannelId == null) && System.currentTimeMillis() - lastAnnoyWarrenTime > (1000 * 60 * 60) /* every goddamn hour */) {
-			if (lastAnnoyWarrenTime == 0L) auriel.getMessageListener().reply(msg, "dammit ${auriel.getWarrenMention()}, setup the bot filter channel!! go complain to him")
+		if ((humanRoleId == null || humanChannelId == null)) {
 			auriel.getLogger().getChannelLogger().logError("u fukin noob, setup the bot filter!!!!")
-			lastAnnoyWarrenTime = System.currentTimeMillis()
 			return false
 		}
-		if (msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)) return false
+		if (/*msg.getAuthorPermissions().contains(Permission.ADMINISTRATOR)*/msg.author.id == Snowflake.of(164118147073310721)) return false
 		if (msg.getChannel().id == humanChannelId) {
 			if (!msg.getMessage().content.isNullOrEmpty() && currentCaptcha.matches(msg)) {
-				msg.getAuthor().addRole(humanRoleId!!).doOnError { auriel.getLogger().logError(it) }.subscribe()
+				msg.getMessage().authorAsMember.doOnError { auriel.getLogger().logError(it) }.flatMap { it.addRole(humanRoleId!!) }.subscribe()
 			}
 			msg.delete()
 			return true
@@ -88,7 +83,7 @@ class BotFilter(private val auriel: Auriel) {
 	}
 	
 	fun checkPreviousMessages() {
-		humanChannel!!.getMessagesBefore(Snowflake.of(Instant.now())).doOnError { auriel.getLogger().logError(it) }.map { ShallowMessage(auriel, it) }
+		humanChannel!!.getMessagesBefore(Snowflake.of(Instant.now())).doOnError { auriel.getLogger().logError(it) }.map { ShallowMessage(auriel, it) }.filter { !it.author.isBot }
 			.subscribe {
 				if (it.getMessage().author.isEmpty) it.delete()
 				else humanCheck(it)

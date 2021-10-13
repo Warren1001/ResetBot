@@ -1,5 +1,6 @@
 package io.github.warren1001.resetbot
 
+import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
 import discord4j.core.GatewayDiscordClient
 import discord4j.core.event.domain.message.MessageCreateEvent
@@ -10,21 +11,39 @@ import java.time.format.DateTimeFormatter
 
 class Auriel(private val gateway: GatewayDiscordClient) {
 	
+	private val userManager = UserManager(this)
+	private val jsonObject = FileUtils.readJsonLines("data.json")
 	private val messageListener: MessageListener = MessageListener(this)
 	private val logger: Logger = Logger(this)
 	private val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss:SS")
-	private val warrenMention: String
+	private lateinit var warrenMention: String
 	
 	init {
-		gateway.on(MessageCreateEvent::class.java).doOnError { logger.logError(it) }.subscribe(messageListener)
-		gateway.on(MessageUpdateEvent::class.java).doOnError { logger.logError(it) }.subscribe(messageListener)
-		gateway.on(MessageDeleteEvent::class.java).doOnError { logger.logError(it) }.subscribe(messageListener)
+		gateway.on(MessageCreateEvent::class.java).onErrorContinue { error, _ -> logger.logError(error) }.subscribe(messageListener)
+		gateway.on(MessageUpdateEvent::class.java).onErrorContinue { error, _ -> logger.logError(error) }.subscribe(messageListener)
+		gateway.on(MessageDeleteEvent::class.java).onErrorContinue { error, _ -> logger.logError(error) }.subscribe(messageListener)
 		gateway.onDisconnect().doOnError { logger.logError(it) }.doOnSuccess { sys("Logging out and shutting down.") }.subscribe()
-		warrenMention = gateway.getUserById(Snowflake.of(164118147073310721)).doOnError { logger.logError(it) }.block()?.mention!!
+		gateway.getUserById(Snowflake.of(164118147073310721L)).doOnError { logger.logError(it) }.subscribe {
+			warrenMention = it.mention
+			// TODO
+		}
+		//warrenMention = gateway.getUserById(Snowflake.of(164118147073310721L)).doOnError { logger.logError(it) }.block()?.mention!!
 	}
 	
 	fun getGateway(): GatewayDiscordClient {
 		return gateway
+	}
+	
+	fun getUserManager(): UserManager {
+		return userManager
+	}
+	
+	fun getJson(): JsonObject {
+		return jsonObject
+	}
+	
+	fun saveJson() {
+		FileUtils.saveJsonLines("data.json", jsonObject)
 	}
 	
 	fun getMessageListener(): MessageListener {
@@ -65,6 +84,7 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 	
 	fun stop() {
 		messageListener.getBotFilter().setOfflineMessage()
+		saveJson()
 		gateway.logout().subscribe()
 		logger.stop()
 	}

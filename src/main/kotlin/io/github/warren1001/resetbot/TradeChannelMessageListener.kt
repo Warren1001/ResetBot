@@ -2,7 +2,6 @@ package io.github.warren1001.resetbot
 
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.channel.MessageChannel
-import discord4j.rest.util.Permission
 import java.io.File
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -58,9 +57,9 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 	private val maximumLines = 45
 	
 	private val usersLastMessage = mutableMapOf<Snowflake, Snowflake>()
-	private val predicate: (ShallowMessage) -> Boolean = { !it.getMessage().isPinned && !it.getAuthor().isBot && (it.getMessage().content.isNullOrEmpty() ||
-			(!it.getAuthorPermissions().contains(Permission.ADMINISTRATOR) || it.getMessage().content[0] != '!')) &&
-			!it.getAuthorPermissions().contains(Permission.MANAGE_MESSAGES) }
+	private val predicate: (ShallowMessage) -> Boolean = { !it.getMessage().isPinned && !it.author.isBot && (it.getMessage().content.isNullOrEmpty() ||
+			(/*!it.getAuthorPermissions().contains(Permission.ADMINISTRATOR)*/it.author.id != Snowflake.of(164118147073310721) || it.getMessage().content[0] != '!'))/* &&
+			!it.getAuthorPermissions().contains(Permission.MANAGE_MESSAGES)*/ }
 	
 	init {
 		val daysAgo = Instant.now().minus(2, ChronoUnit.DAYS)
@@ -80,7 +79,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 			}
 			
 		}
-		timer("checkOldPosts", true, 0, (1000 * 60 * 60).toLong()) {
+		timer("checkOldPosts", true, 0, (1000 * 60 * 20).toLong()) {
 			val channel = auriel.getGateway().getChannelById(channelId).onErrorContinue { error, o -> auriel.getLogger().logError(error) }.block() as MessageChannel
 			channel.getMessagesBefore(Snowflake.of(Instant.now().minus(2, ChronoUnit.DAYS))).doOnError { auriel.getLogger().logError(it) }
 				.filter { !it.isPinned }.flatMap { it.delete() }.subscribe()
@@ -106,21 +105,21 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 						"1 for 1 item trades are considered selling posts and should go in the respective selling channel. " +
 						"You will have to wait the cooldown to post another message. \n```\n${message.getMessage().content.replace("`", "\\`")}\n```"
 				if (content.length > 2000) content = content.substring(0, 2000)
-				message.getAuthor().privateChannel.flatMap { it.createMessage(content) }.subscribe()
+				message.author.privateChannel.flatMap { it.createMessage(content) }.subscribe()
 				return
 			} else if (message.getMessage().content.split('\n').size > maximumLines) {
 				auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
 				var content = "You can have at most $maximumLines lines in your post. " +
 						"You will have to wait the cooldown to post another message with $maximumLines or less lines.\n```\n${message.getMessage().content.replace("`", "\\`")}\n```"
 				if (content.length > 2000) content = content.substring(0, 2000)
-				message.getAuthor().privateChannel.flatMap { it.createMessage(content) }.subscribe()
+				message.author.privateChannel.flatMap { it.createMessage(content) }.subscribe()
 				return
 			}
 			
-			if (usersLastMessage.containsKey(message.getAuthor().id) && usersLastMessage[message.getAuthor().id]!! != message.getMessage().id) {
-				auriel.getGateway().getMessageById(channelId, usersLastMessage[message.getAuthor().id]!!).filter { !it.isPinned }.flatMap { it.delete() }.subscribe()
+			if (usersLastMessage.containsKey(message.author.id) && usersLastMessage[message.author.id]!! != message.getMessage().id) {
+				auriel.getGateway().getMessageById(channelId, usersLastMessage[message.author.id]!!).filter { !it.isPinned }.flatMap { it.delete() }.subscribe()
 			}
-			usersLastMessage[message.getAuthor().id] = message.getMessage().id
+			usersLastMessage[message.author.id] = message.getMessage().id
 			
 		}
 		
@@ -128,7 +127,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 	
 	fun setIsBuy(isBuy: Boolean): Boolean {
 		if (this.isBuy != isBuy) {
-			this.isBuy = isBuy;
+			this.isBuy = isBuy
 			return true
 		}
 		return false

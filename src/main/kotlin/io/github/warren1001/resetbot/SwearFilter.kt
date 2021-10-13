@@ -1,6 +1,5 @@
 package io.github.warren1001.resetbot
 
-import discord4j.rest.util.Permission
 import java.io.File
 import java.util.regex.Pattern
 
@@ -63,7 +62,8 @@ class SwearFilter(private val auriel: Auriel) {
 	
 	fun checkMessage(message: ShallowMessage, repost: Boolean = true, duration: Long = -1): Boolean {
 		
-		if (message.getAuthorPermissions().contains(Permission.MANAGE_MESSAGES)) return false
+		//if (message.getAuthorPermissions().contains(Permission.MANAGE_MESSAGES)) return false
+		if (message.author.isBot) return false
 		
 		var content = message.getMessage().content
 		val stringBuilder = StringBuilder("The message below triggered the following patterns with the accompanying examples:")
@@ -96,13 +96,13 @@ class SwearFilter(private val auriel: Auriel) {
 		val replyContent = "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)"
 		
 		if (repost) {
-			auriel.getMessageListener().replyDeleted(message, "$replyContent\n\n${message.getAuthor().mention} said: $content")
+			auriel.getMessageListener().replyDeleted(message, "$replyContent\n\n${message.author.mention} said: $content")
 		} else {
 			auriel.getMessageListener().replyDeleted(message, "I am sending you a private message, please check it for why your post was deleted.", duration)
 			var pmMsg = "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)\n" +
 					"These are the words (or parts of words) that need to be removed: $foundWords\n```\n${message.getMessage().content.replace("`", "\\`")}\n```"
 			if (pmMsg.length > 2000) pmMsg = pmMsg.substring(0, 2000)
-			message.getAuthor().privateChannel.flatMap { it.createMessage(pmMsg) }.subscribe()
+			message.author.privateChannel.flatMap { it.createMessage(pmMsg) }.subscribe()
 		}
 		
 		
