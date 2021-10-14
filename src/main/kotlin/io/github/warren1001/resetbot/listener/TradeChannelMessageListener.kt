@@ -63,14 +63,14 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 	
 	init {
 		val daysAgo = Instant.now().minus(2, ChronoUnit.DAYS)
-		val channel = auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.cast(MessageChannel::class.java)
+		auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.cast(MessageChannel::class.java)
 			.flatMapMany { it.getMessagesBefore(Snowflake.of(Instant.now())) }.onErrorContinue { error, _ -> auriel.getLogger().logError(error) }.filter { !it.isPinned }
 			.subscribe { msg ->
 				if (msg.content.isNullOrEmpty()) msg.delete().subscribe()
 				else {
 					if (msg.author.isPresent) {
 						val author = msg.author.get()
-						if (author.isBot || msg.timestamp.isBefore(daysAgo)) msg.delete().subscribe()
+						if (msg.timestamp.isBefore(daysAgo)) msg.delete().subscribe()
 						else {
 							if (usersLastMessage.containsKey(author.id)) msg.delete().subscribe()
 							else usersLastMessage[author.id] = msg.id
@@ -107,6 +107,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 							"You will have to wait the cooldown to post another message. \n```\n${message.message.content.replace("`", "\\`")}\n```"
 					if (content.length > 2000) content = content.substring(0, 2000)
 					message.author.privateChannel.flatMap { it.createMessage(content) }.subscribe()
+					return
 				}
 			} else if (!isBuy && sellPattern != null) {
 				val blacklistMatcher = sellPattern!!.matcher(message.message.content)
@@ -116,6 +117,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 							" it was deleted. \n```\n${message.message.content.replace("`", "\\`")}\n```"
 					if (content.length > 2000) content = content.substring(0, 2000)
 					message.author.privateChannel.flatMap { it.createMessage(content) }.subscribe()
+					return
 				}
 			} else if (message.message.content.split('\n').size > maximumLines) {
 				auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)

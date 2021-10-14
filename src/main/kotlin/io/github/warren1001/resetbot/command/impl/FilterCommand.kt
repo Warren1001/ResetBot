@@ -18,8 +18,8 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 				
 				if (args[1].equals("add", true)) {
 					
-					val pattern = args[3]
-					val replacement = args[4]
+					val pattern = args[2]
+					val replacement = args[3]
 					
 					if (auriel.getMessageListener().getSwearFilter().addSwearFilterPattern(pattern, replacement)) {
 						auriel.getMessageListener().reply(ctx.msg, "Added '$pattern' pattern with '$replacement' to the swear filters list.")
@@ -35,8 +35,8 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 				
 				if (args[1].equals("add", true)) {
 					
-					val pattern = auriel.getMessageListener().getSwearFilter().constructBasicPattern(args[3])
-					val replacement = args[4]
+					val pattern = auriel.getMessageListener().getSwearFilter().constructBasicPattern(args[2])
+					val replacement = args[3]
 					
 					if (auriel.getMessageListener().getSwearFilter().addSwearFilterPattern(pattern, replacement)) {
 						auriel.getMessageListener().reply(ctx.msg, "Added '$pattern' pattern with '$replacement' to the swear filters list.")

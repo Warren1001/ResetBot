@@ -1,23 +1,24 @@
 package io.github.warren1001.resetbot.command
 
 import io.github.warren1001.resetbot.Auriel
+import io.github.warren1001.resetbot.listener.MessageListener
 import io.github.warren1001.resetbot.listener.ShallowMessage
 import io.github.warren1001.resetbot.listener.UserManager
 
-class CommandManager(private val auriel: Auriel) {
+class CommandManager(private val auriel: Auriel, private val messageListener: MessageListener) {
 	
 	var prefix = "!"
 	
 	private val commands = mutableMapOf<String, Command>()
 	
 	fun registerCommand(name: String, permission: Int = UserManager.ADMINISTRATOR,
-	                    usage: String = "Usage: ${auriel.getMessageListener().getCommandManager().prefix}$name", action: (CommandContext) -> Boolean) {
+	                    usage: String = "Usage: $prefix$name", action: (CommandContext) -> Boolean) {
 		if (commands.containsKey(name.lowercase())) return auriel.error("Command '$name' is already registered!")
 		commands[name.lowercase()] = Command(auriel, name.lowercase(), permission, usage, action)
 	}
 	
 	fun registerSimpleCommand(name: String, permission: Int = UserManager.ADMINISTRATOR,
-	                    usage: String = "Usage: ${auriel.getMessageListener().getCommandManager().prefix}$name", action: (CommandContext) -> Unit) {
+	                    usage: String = "Usage: $prefix$name", action: (CommandContext) -> Unit) {
 		if (commands.containsKey(name.lowercase())) return auriel.error("Command '$name' is already registered!")
 		commands[name.lowercase()] = Command(auriel, name.lowercase(), permission, usage) {
 			action.invoke(it)
@@ -34,7 +35,7 @@ class CommandManager(private val auriel: Auriel) {
 		if (!commands.containsKey(commandName)) return false
 		val command = commands[commandName]!!
 		if (!auriel.getUserManager().hasPermission(msg.author.id, command.permission)) return false
-		if (!command.action.invoke(CommandContext(msg, if (args.size == 1) "" else args[1]))) auriel.getMessageListener().reply(msg, command.usage)
+		if (!command.action.invoke(CommandContext(msg, if (args.size == 1) "" else args[1]))) messageListener.reply(msg, command.usage)
 		return true
 	}
 	

@@ -10,17 +10,14 @@ import io.github.warren1001.resetbot.listener.MessageListener
 import io.github.warren1001.resetbot.listener.UserManager
 import io.github.warren1001.resetbot.logging.Logger
 import io.github.warren1001.resetbot.utils.FileUtils
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 class Auriel(private val gateway: GatewayDiscordClient) {
 	
-	private val userManager = UserManager(this)
 	private val jsonObject = FileUtils.readJsonLines("data.json")
 	private val messageListener: MessageListener = MessageListener(this)
+	private val userManager = UserManager()
 	private val logger: Logger = Logger(this)
 	private val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss:SS")
 	private lateinit var warrenMention: String
@@ -32,9 +29,8 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 		gateway.onDisconnect().doOnError { logger.logError(it) }.doOnSuccess { sys("Logging out and shutting down.") }.subscribe()
 		gateway.getUserById(Snowflake.of(164118147073310721L)).doOnError { logger.logError(it) }.subscribe {
 			warrenMention = it.mention
-			// TODO
+			messageListener.getBotFilter().setRandomCaptcha()
 		}
-		//warrenMention = gateway.getUserById(Snowflake.of(164118147073310721L)).doOnError { logger.logError(it) }.block()?.mention!!
 	}
 	
 	fun getGateway(): GatewayDiscordClient {
@@ -50,7 +46,7 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 	}
 	
 	fun saveJson() {
-		CoroutineScope(Dispatchers.IO).async { FileUtils.saveJsonLines("data.json", jsonObject) }
+		FileUtils.saveJsonLines("data.json", jsonObject)
 	}
 	
 	fun getMessageListener(): MessageListener {

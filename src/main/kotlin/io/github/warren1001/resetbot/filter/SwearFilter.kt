@@ -1,40 +1,37 @@
 package io.github.warren1001.resetbot.filter
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import io.github.warren1001.resetbot.Auriel
-import io.github.warren1001.resetbot.utils.FileUtils
 import io.github.warren1001.resetbot.listener.ShallowMessage
 import java.util.regex.Pattern
 
 class SwearFilter(private val auriel: Auriel) {
 	
-	private val patterns = if (auriel.getJson().has("filter.swear.filters")) { FileUtils.gson.fromJson<MutableSet<Filter>>(auriel.getJson()["filter.swear.filters"].toString()) }
-		else { mutableSetOf() }
+	private val patterns = mutableSetOf<Filter>()
+	private val jsonArray: JsonArray
 	
 	init {
 		
-		/*if (swearFilterFile.exists()) {
-			swearFilterFile.forEachLine {
-				val args = it.split(",", limit = 2)
-				patterns.add(Filter(Pattern.compile(args[0]), args[1]))
+		if (auriel.getJson().has("filter.filters") && auriel.getJson()["filter.filters"].isJsonArray) {
+			
+			jsonArray = auriel.getJson()["filter.filters"].asJsonArray
+			jsonArray.forEach {
+				patterns.add(Filter(Pattern.compile(it.asJsonObject["pattern"].asString), it.asJsonObject["replacement"].asString))
 			}
-		} else {
-			swearFilterFile.createNewFile()
 			
-			// default patterns
-			patterns.add(Filter(Pattern.compile("(?i)([f]+[u]+[c]+[k]+)"), "flip"))
-			patterns.add(Filter(Pattern.compile("(?i)([s]+[h]+[i]+[t]+)"), "crap"))
-			swearFilterFile.writeText(patterns.joinToString(System.lineSeparator()) { "${it.pattern.pattern()},${it.replacement}" })
-			
-		}*/
+		} else jsonArray = JsonArray()
 	
 	}
 	
 	fun addSwearFilterPattern(pattern: String, replacement: String): Boolean {
 		if (containsPattern(pattern)) return false
 		patterns.add(Filter(Pattern.compile(pattern), replacement))
-		auriel.getJson().add("filter.swear.filters", FileUtils.gson.toJsonTreeType(patterns))
+		val patternObj = JsonObject()
+		patternObj.addProperty("pattern", pattern)
+		patternObj.addProperty("replacement", replacement)
+		jsonArray.add(patternObj)
+		auriel.getJson().add("filter.filters", jsonArray)
 		auriel.saveJson()
 		return true
 	}
@@ -49,7 +46,8 @@ class SwearFilter(private val auriel: Auriel) {
 	fun removeSwearFilterPattern(pattern: String): Boolean {
 		if (patterns.isEmpty() || !containsPattern(pattern)) return false
 		patterns.removeIf { it.pattern.pattern() == pattern }
-		auriel.getJson().add("filter.swear.filters", FileUtils.gson.toJsonTreeType(patterns))
+		jsonArray.removeAll { it.asJsonObject["pattern"].asString == pattern }
+		auriel.getJson().add("filter.filters", jsonArray)
 		auriel.saveJson()
 		return true
 	}
@@ -67,7 +65,7 @@ class SwearFilter(private val auriel: Auriel) {
 		if (message.author.isBot || message.isModerator()) return false
 		
 		var content = message.message.content
-		val stringBuilder = StringBuilder("The message below triggered the following patterns with the accompanying examples:")
+		val stringBuilder = StringBuilder("swearing")
 		var flagged = false
 		var foundWords = ""
 		
@@ -78,10 +76,10 @@ class SwearFilter(private val auriel: Auriel) {
 			if (matcher.find()) {
 				flagged = true
 				
-				stringBuilder.append("\n||${it.pattern.pattern()}||: ")
+				stringBuilder.append("\n${it.pattern.pattern()}: ")
 				for (i in 1..matcher.groupCount()) {
 					val swear = matcher.group(i)
-					stringBuilder.append("||$swear||")
+					stringBuilder.append(swear)
 					foundWords += "$swear "
 				}
 				
@@ -109,8 +107,5 @@ class SwearFilter(private val auriel: Auriel) {
 		
 		return true
 	}
-	
-	inline fun <reified T> Gson.fromJson(json: String) = fromJson<T>(json, object: TypeToken<T>() {}.type)
-	inline fun <reified T> Gson.toJsonTreeType(t: T) = toJsonTree(t, object: TypeToken<T>() {}.type)
 
 }

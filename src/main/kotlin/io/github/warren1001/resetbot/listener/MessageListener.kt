@@ -23,20 +23,20 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	
 	private val swearFilter = SwearFilter(auriel)
 	private val botFilter = BotFilter(auriel)
-	private val commandManager = CommandManager(auriel)
+	private val commandManager = CommandManager(auriel, this)
 	private val tradeChannelListener = TradeChannelCommand(auriel)
 	
 	init {
 		
 		
 		commandManager.registerSimpleCommand("ping", UserManager.MODERATOR) { reply(it.msg, "Pong.", true, 5) }
-		commandManager.registerSimpleCommand("imamod", UserManager.MODERATOR) { ctx ->
+		commandManager.registerSimpleCommand("imamod", UserManager.EVERYONE) { ctx ->
 			ctx.msg.message.authorAsMember.flatMap { member -> member.basePermissions.map { Tuples.of(member, it) } }.filter { it.t2.contains(Permission.BAN_MEMBERS) }.subscribe {
 				auriel.getUserManager().addModerator(it.t1.id)
 				reply(ctx.msg, "fine.", true, 10L)
 			}
 		}
-		commandManager.registerSimpleCommand("imadmin") { ctx ->
+		commandManager.registerSimpleCommand("imadmin", UserManager.EVERYONE) { ctx ->
 			ctx.msg.message.authorAsMember.flatMap { member -> member.basePermissions.map { Tuples.of(member, it) } }.filter { it.t2.contains(Permission.ADMINISTRATOR) }.subscribe {
 				auriel.getUserManager().addAdministrator(it.t1.id)
 				reply(ctx.msg, "fine.", true, 10L)

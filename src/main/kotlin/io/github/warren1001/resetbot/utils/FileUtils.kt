@@ -16,7 +16,8 @@ class FileUtils {
 		val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 		
 		fun readJsonLines(path: String): JsonObject {
-			return JsonParser.parseString(try { Files.readString(Paths.get(path)) } catch (e: IOException) { "" }).asJsonObject
+			val element = JsonParser.parseString(try { Files.readString(Paths.get(path)) } catch (e: IOException) { "" })
+			return if (element != null && element.isJsonObject) element.asJsonObject else JsonObject()
 		}
 		
 		fun readBasicLine(path: String): String {
@@ -58,7 +59,7 @@ class FileUtils {
 		}
 		
 		private fun mkdirs(path: Path): Boolean {
-			return path.toFile().mkdirs()
+			return path.toFile().parentFile?.mkdirs() ?: true
 		}
 		
 	}

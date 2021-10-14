@@ -5,8 +5,8 @@ import com.google.gson.reflect.TypeToken
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.channel.MessageChannel
 import io.github.warren1001.resetbot.Auriel
-import io.github.warren1001.resetbot.utils.FileUtils
 import io.github.warren1001.resetbot.listener.ShallowMessage
+import io.github.warren1001.resetbot.utils.FileUtils
 import reactor.core.publisher.Flux
 
 class ChannelLogger(private val auriel: Auriel) {
@@ -40,8 +40,8 @@ class ChannelLogger(private val auriel: Auriel) {
 	}
 	
 	fun logDelete(message: ShallowMessage, reason: String) {
-		log("__**Deleted Message**__\n${message.author.mention} in ${message.channel.mention} for $reason." +
-				"Reason: $reason\nMessage: ||${message.message.content.replace("\n", " **\\n**")}||")
+		log("__**Deleted Message**__\n${message.author.mention} in ${message.channel.mention} for: $reason" +
+				"\nMessage: ||${message.message.content.replace("\n", " **\\n**")}||")
 	}
 	
 	fun logError(message: String) {
