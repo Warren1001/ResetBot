@@ -4,6 +4,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
 import io.github.warren1001.resetbot.utils.FileUtils
+import io.github.warren1001.resetbot.utils.JsonObjectBuilder
 
 class UserManager {
 	
@@ -13,15 +14,12 @@ class UserManager {
 		const val ADMINISTRATOR = 10
 	}
 	
-	private val jsonObject = FileUtils.readJsonLines("users.json")
 	private val permissions = mutableMapOf<Snowflake, Int>()
-	private val jsonArray: JsonArray
+	private val jsonObject: JsonObject = FileUtils.readJsonLines("users.json")
+	private val jsonArray: JsonArray = if (jsonObject.has("permissions") && jsonObject["permissions"].isJsonArray) jsonObject["permissions"].asJsonArray else JsonArray()
 	
 	init {
-		if (jsonObject.has("permissions") && jsonObject["permissions"].isJsonArray) {
-			jsonArray = jsonObject["permissions"].asJsonArray
-			jsonArray.forEach { permissions[Snowflake.of(it.asJsonObject["id"].asLong)] = it.asJsonObject["permission"].asInt }
-		} else jsonArray = JsonArray()
+		jsonArray.forEach { permissions[Snowflake.of(it.asJsonObject["id"].asLong)] = it.asJsonObject["permission"].asInt }
 	}
 	
 	fun addModerator(id: Snowflake) {
@@ -36,8 +34,7 @@ class UserManager {
 		if (permissions.containsKey(id)) {
 			permissions.remove(id)
 			jsonArray.removeAll { it.asJsonObject["id"].asLong == id.asLong() }
-			jsonObject.add("permissions", jsonArray)
-			saveJson()
+			savePermissions()
 			return true
 		}
 		return false
@@ -59,12 +56,13 @@ class UserManager {
 		if (permissions.containsKey(id)) {
 			jsonArray.filter { it.asJsonObject["id"].asLong == id.asLong() }.forEach { it.asJsonObject.addProperty("permission", permission) }
 		} else {
-			val permObj = JsonObject()
-			permObj.addProperty("id", id.asLong())
-			permObj.addProperty("permission", ADMINISTRATOR)
-			jsonArray.add(permObj)
+			jsonArray.add(JsonObjectBuilder().addProperty("id", id.asLong()).addProperty("permission", permission).build())
 		}
 		permissions[id] = permission
+		savePermissions()
+	}
+	
+	private fun savePermissions() {
 		jsonObject.add("permissions", jsonArray)
 		saveJson()
 	}

@@ -65,6 +65,10 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 		return warrenMention
 	}
 	
+	fun hasWarrenMentionInit(): Boolean {
+		return this::warrenMention.isInitialized
+	}
+	
 	fun info(msg: String) {
 		log("INFO", msg)
 	}

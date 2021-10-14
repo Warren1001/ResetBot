@@ -4,35 +4,24 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import io.github.warren1001.resetbot.Auriel
 import io.github.warren1001.resetbot.listener.ShallowMessage
+import io.github.warren1001.resetbot.utils.JsonObjectBuilder
 import java.util.regex.Pattern
 
 class SwearFilter(private val auriel: Auriel) {
 	
 	private val patterns = mutableSetOf<Filter>()
-	private val jsonArray: JsonArray
+	private val filterJsonObject: JsonObject = if (auriel.getJson().has("filter") && auriel.getJson()["filter"].isJsonObject) auriel.getJson()["filter"].asJsonObject else JsonObject()
+	private val filtersJsonArray: JsonArray = if (filterJsonObject.has("filters") && filterJsonObject["filters"].isJsonArray) filterJsonObject["filters"].asJsonArray else JsonArray()
 	
 	init {
-		
-		if (auriel.getJson().has("filter.filters") && auriel.getJson()["filter.filters"].isJsonArray) {
-			
-			jsonArray = auriel.getJson()["filter.filters"].asJsonArray
-			jsonArray.forEach {
-				patterns.add(Filter(Pattern.compile(it.asJsonObject["pattern"].asString), it.asJsonObject["replacement"].asString))
-			}
-			
-		} else jsonArray = JsonArray()
-	
+		filtersJsonArray.map { it.asJsonObject }.forEach { patterns.add(Filter(Pattern.compile(it["pattern"].asString), it["replacement"].asString)) }
 	}
 	
 	fun addSwearFilterPattern(pattern: String, replacement: String): Boolean {
 		if (containsPattern(pattern)) return false
 		patterns.add(Filter(Pattern.compile(pattern), replacement))
-		val patternObj = JsonObject()
-		patternObj.addProperty("pattern", pattern)
-		patternObj.addProperty("replacement", replacement)
-		jsonArray.add(patternObj)
-		auriel.getJson().add("filter.filters", jsonArray)
-		auriel.saveJson()
+		filtersJsonArray.add(JsonObjectBuilder().addProperty("pattern", pattern).addProperty("replacement", replacement).build())
+		saveFilters()
 		return true
 	}
 	
@@ -46,9 +35,8 @@ class SwearFilter(private val auriel: Auriel) {
 	fun removeSwearFilterPattern(pattern: String): Boolean {
 		if (patterns.isEmpty() || !containsPattern(pattern)) return false
 		patterns.removeIf { it.pattern.pattern() == pattern }
-		jsonArray.removeAll { it.asJsonObject["pattern"].asString == pattern }
-		auriel.getJson().add("filter.filters", jsonArray)
-		auriel.saveJson()
+		filtersJsonArray.removeAll { it.asJsonObject["pattern"].asString == pattern }
+		saveFilters()
 		return true
 	}
 	
@@ -76,7 +64,7 @@ class SwearFilter(private val auriel: Auriel) {
 			if (matcher.find()) {
 				flagged = true
 				
-				stringBuilder.append("\n${it.pattern.pattern()}: ")
+				stringBuilder.append("\n`${it.pattern.pattern()}`: ")
 				for (i in 1..matcher.groupCount()) {
 					val swear = matcher.group(i)
 					stringBuilder.append(swear)
@@ -106,6 +94,12 @@ class SwearFilter(private val auriel: Auriel) {
 		
 		
 		return true
+	}
+	
+	private fun saveFilters() {
+		filterJsonObject.add("filters", filtersJsonArray)
+		auriel.getJson().add("filter", filterJsonObject)
+		auriel.saveJson()
 	}
 
 }

@@ -1,5 +1,6 @@
 package io.github.warren1001.resetbot.filter
 
+import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.Message
 import discord4j.core.`object`.entity.channel.MessageChannel
@@ -12,42 +13,54 @@ import kotlin.random.Random
 class BotFilter(private val auriel: Auriel) {
 	
 	private val captchas = mutableListOf<Captcha>()
+	private val humanJsonObject = if (auriel.getJson().has("human") && auriel.getJson()["human"].isJsonObject) auriel.getJson()["human"].asJsonObject else JsonObject()
+	private val idJsonObject = if (humanJsonObject.has("id") && humanJsonObject["id"].isJsonObject) humanJsonObject["id"].asJsonObject else JsonObject()
 	private var currentCaptcha: Captcha
 	private var humanRoleId: Snowflake? = null
 	private var humanChannelId: Snowflake? = null
 	private var botMessageId: Snowflake? = null
 	private var botMessage: Message? = null
+	private var setEarly = false
 	
 	init {
 		
 		// just gonna hardcode these
 		captchas.add(
-			Captcha("__Which item was the last item MrLlama needed to complete his holy grail?__\n\n" +
-						"Tyrael's Might\nDeath's Web\n***Mang Song's Lesson***\nTemplar's Might\nGriswold's Redemption", "mang", "song", "lesson")
+			Captcha(
+				"__Which item was the last item MrLlama needed to complete his holy grail?__\n\n" +
+						"Tyrael's Might\nDeath's Web\n***Mang Song's Lesson***\nTemplar's Might\nGriswold's Redemption", "mang", "song", "lesson"
+			)
 		)
 		captchas.add(
-			Captcha("__What is MrLlama's first name?__\n\n" +
-				"Steve\nLlama\nPete\nDavidson\n***Alex***", "alex", "pete", "davidson")
+			Captcha(
+				"__What is MrLlama's first name?__\n\n" +
+						"Steve\nLlama\nPete\nDavidson\n***Alex***", "alex", "pete", "davidson"
+			)
 		)
 		captchas.add(
-			Captcha("__What is MrLlama's brand identity animal?__\n\n" +
-				"Alpaca\n***Llama***\nCamel\nPete Davidson", "llama", "lamma", "lama", "camel", "pete", "davidson")
+			Captcha(
+				"__What is MrLlama's brand identity animal?__\n\n" +
+						"Alpaca\n***Llama***\nCamel\nPete Davidson", "llama", "lamma", "lama", "camel", "pete", "davidson"
+			)
 		)
 		captchas.add(
-			Captcha("__Does MrLlama have a YouTube voice?__\n\n" +
-				"**Yes**\nNo", "yes")
+			Captcha(
+				"__Does MrLlama have a YouTube voice?__\n\n" +
+						"**Yes**\nNo", "yes"
+			)
 		)
 		currentCaptcha = captchas[Random.nextInt(captchas.size)]
 		
-		val role = auriel.getJson()["human.id.role"]
-		if (role != null) humanRoleId = Snowflake.of(role.asLong)
-		val channel = auriel.getJson()["human.id.channel"]
-		if (channel != null) humanChannelId = Snowflake.of(channel.asLong)
-		
-		val message = auriel.getJson()["human.id.message"]
-		if (message != null) {
-			botMessageId = Snowflake.of(message.asLong)
-			auriel.getGateway().getChannelById(humanChannelId!!).cast(MessageChannel::class.java).flatMap { it.getMessageById(botMessageId) }.subscribe { setBotMessage(it) }
+		if (idJsonObject.has("role")) {
+			humanRoleId = Snowflake.of(idJsonObject["role"].asLong)
+		}
+		if (idJsonObject.has("channel")) {
+			humanChannelId = Snowflake.of(idJsonObject["channel"].asLong)
+		}
+		if (idJsonObject.has("message")) {
+			botMessageId = Snowflake.of(idJsonObject["message"].asLong)
+			auriel.getGateway().getChannelById(humanChannelId!!).cast(MessageChannel::class.java).flatMap { it.getMessageById(botMessageId) }.doOnError { setupBotMessage() }
+				.subscribe { trySetFirstMessage(it) }
 		} else if (humanChannelId != null) setupBotMessage()
 		
 		if (humanRoleId != null && humanChannelId != null) checkPreviousMessages()
@@ -72,8 +85,13 @@ class BotFilter(private val auriel: Auriel) {
 	
 	fun setHumanRoleId(id: Snowflake) {
 		humanRoleId = id
-		if (humanChannelId != null) checkPreviousMessages()
-		auriel.getJson().addProperty("human.id.role", id.asLong())
+		if (humanChannelId != null) {
+			checkPreviousMessages()
+			setRandomCaptcha()
+		}
+		idJsonObject.addProperty("role", id.asLong())
+		humanJsonObject.add("id", idJsonObject)
+		auriel.getJson().add("human", humanJsonObject)
 		auriel.saveJson()
 	}
 	
@@ -81,12 +99,13 @@ class BotFilter(private val auriel: Auriel) {
 		humanChannelId = id
 		setupBotMessage()
 		if (humanRoleId != null) checkPreviousMessages()
-		auriel.getJson().addProperty("human.id.channel", id.asLong())
+		idJsonObject.addProperty("channel", id.asLong())
+		humanJsonObject.add("id", idJsonObject)
+		auriel.getJson().add("human", humanJsonObject)
 		auriel.saveJson()
 	}
 	
 	fun checkPreviousMessages() {
-		
 		auriel.getGateway().getChannelById(humanChannelId!!).doOnError { auriel.getLogger().logError(it) }.cast(MessageChannel::class.java)
 			.flatMapMany { it.getMessagesBefore(Snowflake.of(Instant.now())) }.filter { it.author.isEmpty || !it.author.get().isBot }
 			.subscribe {
@@ -101,8 +120,16 @@ class BotFilter(private val auriel: Auriel) {
 		timer("randomizeCaptcha", true, interval, interval) { setRandomCaptcha() }
 	}
 	
+	fun isBotMessage(id: Snowflake): Boolean {
+		return id == botMessageId
+	}
+	
 	fun setRandomCaptcha() {
-		if (botMessage == null) return
+		if (botMessage == null || !auriel.hasWarrenMentionInit()) {
+			setEarly = true
+			return
+		}
+		setEarly = false
 		var nextCaptcha = captchas[Random.nextInt(captchas.size)]
 		while (nextCaptcha == currentCaptcha) {
 			nextCaptcha = captchas[Random.nextInt(captchas.size)]
@@ -118,16 +145,27 @@ class BotFilter(private val auriel: Auriel) {
 	
 	fun setOfflineMessage() {
 		if (botMessage == null) return
-		botMessage!!.edit(MessageEditSpec.create().withContentOrNull("I am currently being restarted. Guess I wasn't good enough :( " +
-				"Please wait up to a minute for me to return.")).subscribe()
+		botMessage!!.edit(
+			MessageEditSpec.create().withContentOrNull(
+				"I am currently being restarted. Guess I wasn't good enough :( " +
+						"Please wait up to a minute for me to return."
+			)
+		).subscribe()
 	}
 	
 	fun setupBotMessage() {
 		auriel.getGateway().getChannelById(humanChannelId!!).cast(MessageChannel::class.java).flatMap { it.createMessage("Setting up the captcha...") }.subscribe {
-			setBotMessage(it)
-			auriel.getJson().addProperty("human.id.message", it.id.asLong())
+			if (humanRoleId != null) trySetFirstMessage(it, true)
+			idJsonObject.addProperty("message", it.id.asLong())
+			humanJsonObject.add("id", idJsonObject)
+			auriel.getJson().add("human", humanJsonObject)
 			auriel.saveJson()
 		}
+	}
+	
+	fun trySetFirstMessage(msg: Message, notEarly: Boolean = false) {
+		setBotMessage(msg)
+		if (notEarly || setEarly) setRandomCaptcha()
 	}
 	
 }

@@ -58,7 +58,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 	private val usersLastMessage = mutableMapOf<Snowflake, Snowflake>()
 	private val predicate: (ShallowMessage) -> Boolean = {
 		!it.message.isPinned && !it.author.isBot && (it.message.content.isNullOrEmpty() ||
-				(!it.isAdministrator() || it.message.content[0] != '!')) && !it.isModerator()
+				(!it.isAdministrator() || it.message.content[0] != '!')) && !it.isModerator() // TODO handle commands in the trade channels the right way
 	}
 	
 	init {

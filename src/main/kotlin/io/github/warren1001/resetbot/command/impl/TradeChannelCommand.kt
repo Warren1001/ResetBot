@@ -7,22 +7,27 @@ import io.github.warren1001.resetbot.Auriel
 import io.github.warren1001.resetbot.command.CommandContext
 import io.github.warren1001.resetbot.listener.ShallowMessage
 import io.github.warren1001.resetbot.listener.TradeChannelMessageListener
+import io.github.warren1001.resetbot.utils.JsonObjectBuilder
 
 class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 	
 	private val tradeListeners = mutableMapOf<Snowflake, TradeChannelMessageListener>()
-	private val jsonArray: JsonArray
+	private val tradeJsonObject = if (auriel.getJson().has("trade") && auriel.getJson()["trade"].isJsonObject) auriel.getJson()["trade"].asJsonObject else JsonObject()
+	private val blacklistJsonObject = if (tradeJsonObject.has("blacklist") && tradeJsonObject["blacklist"].isJsonObject) tradeJsonObject["blacklist"].asJsonObject else JsonObject()
+	private val channelsJsonArray: JsonArray = if (tradeJsonObject.has("channels") && tradeJsonObject["channels"].isJsonArray) tradeJsonObject["channels"].asJsonArray else JsonArray()
 	
 	init {
-		val jsonObject = auriel.getJson()["trade.channels"]
-		if (jsonObject != null && jsonObject.isJsonArray) {
-			jsonArray = jsonObject.asJsonArray
-			jsonArray.forEach {
-				val channelId = Snowflake.of(it.asJsonObject["id"].asLong)
-				tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, it.asJsonObject["is-buy"].asBoolean)
-			}
-		} else jsonArray = JsonArray()
-		if (auriel.getJson().has("trade.maximum-lines")) TradeChannelMessageListener.maximumLines = auriel.getJson()["trade.maximum-lines"].asInt
+		channelsJsonArray.map { it.asJsonObject }.forEach {
+			val channelId = Snowflake.of(it["id"].asLong)
+			tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, it["is-buy"].asBoolean)
+		}
+		if (blacklistJsonObject.has("buy") && blacklistJsonObject["buy"].isJsonArray) {
+			blacklistJsonObject["buy"].asJsonArray.map { it.asString }.forEach { TradeChannelMessageListener.addBuyBlacklist(it) }
+		}
+		if (blacklistJsonObject.has("sell") && blacklistJsonObject["sell"].isJsonArray) {
+			blacklistJsonObject["sell"].asJsonArray.map { it.asString }.forEach { TradeChannelMessageListener.addSellBlacklist(it) }
+		}
+		if (tradeJsonObject.has("maximum-lines")) TradeChannelMessageListener.maximumLines = tradeJsonObject["maximum-lines"].asInt
 	}
 	
 	override fun invoke(ctx: CommandContext): Boolean {
@@ -48,11 +53,8 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 						if (isBuy) {
 							
 							if (TradeChannelMessageListener.addBuyBlacklist(word)) {
-								val jsonArray = JsonArray()
-								TradeChannelMessageListener.buyBlacklist.forEach { jsonArray.add(it) }
-								auriel.getJson().add("trade.blacklist.buy", jsonArray)
+								saveBlacklist(true)
 								auriel.getMessageListener().reply(ctx.msg, "Added '$word' as a blacklist word to the buy list.", true, 10L)
-								auriel.saveJson()
 							} else {
 								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was already blacklisted in the buy list.", true, 10L)
 							}
@@ -61,11 +63,8 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 						} else {
 							
 							if (TradeChannelMessageListener.addSellBlacklist(word)) {
-								val jsonArray = JsonArray()
-								TradeChannelMessageListener.sellBlacklist.forEach { jsonArray.add(it) }
-								auriel.getJson().add("trade.blacklist.sell", jsonArray)
+								saveBlacklist(false)
 								auriel.getMessageListener().reply(ctx.msg, "Added '$word' as a blacklist word to the sell list.", true, 10L)
-								auriel.saveJson()
 							} else {
 								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was already blacklisted in the sell list.", true, 10L)
 							}
@@ -86,11 +85,8 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 						if (isBuy) {
 							
 							if (TradeChannelMessageListener.removeBuyBlacklist(word)) {
-								val jsonArray = JsonArray()
-								TradeChannelMessageListener.buyBlacklist.forEach { jsonArray.add(it) }
-								auriel.getJson().add("trade.blacklist.buy", jsonArray)
+								saveBlacklist(true)
 								auriel.getMessageListener().reply(ctx.msg, "Removed '$word' as a blacklist word from the buy list.", true, 10L)
-								auriel.saveJson()
 							} else {
 								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was not blacklisted in the buy list.", true, 10L)
 							}
@@ -99,11 +95,8 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 						} else {
 							
 							if (TradeChannelMessageListener.removeSellBlacklist(word)) {
-								val jsonArray = JsonArray()
-								TradeChannelMessageListener.sellBlacklist.forEach { jsonArray.add(it) }
-								auriel.getJson().add("trade.blacklist.sell", jsonArray)
+								saveBlacklist(false)
 								auriel.getMessageListener().reply(ctx.msg, "Removed '$word' as a blacklist word from the sell list.", true, 10L)
-								auriel.saveJson()
 							} else {
 								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was not blacklisted in the sell list.", true, 10L)
 							}
@@ -128,17 +121,11 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 					
 					if (TradeChannelMessageListener.addBuyBlacklist(word)) {
 						removed = true
-						val jsonArray = JsonArray()
-						TradeChannelMessageListener.buyBlacklist.forEach { jsonArray.add(it) }
-						auriel.getJson().add("trade.blacklist.buy", jsonArray)
-						auriel.saveJson()
+						saveBlacklist(true)
 					}
 					if (TradeChannelMessageListener.addSellBlacklist(word)) {
 						removed = true
-						val jsonArray = JsonArray()
-						TradeChannelMessageListener.sellBlacklist.forEach { jsonArray.add(it) }
-						auriel.getJson().add("trade.blacklist.sell", jsonArray)
-						auriel.saveJson()
+						saveBlacklist(false)
 					}
 					
 					if (removed) {
@@ -156,17 +143,11 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 					
 					if (TradeChannelMessageListener.removeBuyBlacklist(word)) {
 						removed = true
-						val jsonArray = JsonArray()
-						TradeChannelMessageListener.buyBlacklist.forEach { jsonArray.add(it) }
-						auriel.getJson().add("trade.blacklist.buy", jsonArray)
-						auriel.saveJson()
+						saveBlacklist(true)
 					}
 					if (TradeChannelMessageListener.removeSellBlacklist(word)) {
 						removed = true
-						val jsonArray = JsonArray()
-						TradeChannelMessageListener.sellBlacklist.forEach { jsonArray.add(it) }
-						auriel.getJson().add("trade.blacklist.sell", jsonArray)
-						auriel.saveJson()
+						saveBlacklist(false)
 					}
 					
 					if (removed) {
@@ -192,10 +173,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 						
 						if (tradeListeners[channelId]!!.setIsBuy(isBuy)) {
 							
-							jsonArray.filter { it.asJsonObject["id"].asLong == channelId.asLong() }.forEach { it.asJsonObject.addProperty("is-buy", isBuy) }
-							auriel.getJson().add("trade.channels", jsonArray)
+							channelsJsonArray.filter { it.asJsonObject["id"].asLong == channelId.asLong() }.forEach { it.asJsonObject.addProperty("is-buy", isBuy) }
+							saveChannels()
 							auriel.getMessageListener().reply(ctx.msg, "Set this channel as a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
-							auriel.saveJson()
 							
 						} else {
 							auriel.getMessageListener().reply(ctx.msg, "This channel was already a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
@@ -203,13 +183,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 						
 					} else {
 						tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, isBuy)
-						val channelObj = JsonObject()
-						channelObj.addProperty("id", channelId.asLong())
-						channelObj.addProperty("is-buy", isBuy)
-						jsonArray.add(channelObj)
-						auriel.getJson().add("trade.channels", jsonArray)
+						channelsJsonArray.add(JsonObjectBuilder().addProperty("id", channelId.asLong()).addProperty("is-buy", isBuy).build())
+						saveChannels()
 						auriel.getMessageListener().reply(ctx.msg, "Set this channel as a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
-						auriel.saveJson()
 					}
 					
 					return true
@@ -221,7 +197,8 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 				if (maximumLines != null) {
 					
 					TradeChannelMessageListener.maximumLines = maximumLines
-					auriel.getJson().addProperty("trade.maximum-lines", maximumLines)
+					tradeJsonObject.addProperty("maximum-lines", maximumLines)
+					auriel.getJson().add("trade", tradeJsonObject)
 					auriel.getMessageListener().reply(ctx.msg, "Set the maximum lines in a trade channel to $maximumLines.", true, 10L)
 					auriel.saveJson()
 					
@@ -234,17 +211,19 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 			
 			if (args[0].equals("remove", true)) {
 				
-				tradeListeners.remove(channelId)
-				jsonArray.removeAll { it.asJsonObject["id"].asLong == channelId.asLong() }
-				auriel.getJson().add("trade.channels", jsonArray)
-				auriel.getMessageListener().reply(ctx.msg, "Removed this channel as a trading channel.", true, 10L)
-				auriel.saveJson()
+				if (tradeListeners.containsKey(channelId)) {
+					tradeListeners.remove(channelId)
+					channelsJsonArray.removeAll { it.asJsonObject["id"].asLong == channelId.asLong() }
+					saveChannels()
+					auriel.getMessageListener().reply(ctx.msg, "Removed this channel as a trading channel.", true, 10L)
+				} else {
+					auriel.getMessageListener().reply(ctx.msg, "This channel is not a trading channel.", true, 10L)
+				}
 				
 				return true
 			}
 			
 		}
-		
 		
 		return false
 	}
@@ -259,6 +238,22 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 	
 	fun remove(channelId: Snowflake, messageId: Snowflake) {
 		if (tradeListeners.containsKey(channelId)) tradeListeners[channelId]!!.removeMessage(messageId)
+	}
+	
+	private fun saveBlacklist(type: Boolean) {
+		val jsonArray = JsonArray()
+		if (type) TradeChannelMessageListener.buyBlacklist.forEach { jsonArray.add(it) }
+		else TradeChannelMessageListener.sellBlacklist.forEach { jsonArray.add(it) }
+		blacklistJsonObject.add(if (type) "buy" else "sell", jsonArray)
+		tradeJsonObject.add("blacklist", blacklistJsonObject)
+		auriel.getJson().add("trade", tradeJsonObject)
+		auriel.saveJson()
+	}
+	
+	private fun saveChannels() {
+		tradeJsonObject.add("channels", channelsJsonArray)
+		auriel.getJson().add("trade", tradeJsonObject)
+		auriel.saveJson()
 	}
 	
 }

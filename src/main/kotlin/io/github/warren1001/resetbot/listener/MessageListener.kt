@@ -28,7 +28,6 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	
 	init {
 		
-		
 		commandManager.registerSimpleCommand("ping", UserManager.MODERATOR) { reply(it.msg, "Pong.", true, 5) }
 		commandManager.registerSimpleCommand("imamod", UserManager.EVERYONE) { ctx ->
 			ctx.msg.message.authorAsMember.flatMap { member -> member.basePermissions.map { Tuples.of(member, it) } }.filter { it.t2.contains(Permission.BAN_MEMBERS) }.subscribe {
@@ -47,7 +46,7 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 			auriel.stop()
 		}
 		commandManager.registerCommand("tc", action = tradeChannelListener)
-		commandManager.registerSimpleCommand("swearfilterlist") { reply(it.msg, "Here are the swear filters currently in place:\n${swearFilter.getListOfPatterns()}") }
+		commandManager.registerSimpleCommand("swearfilterlist", UserManager.MODERATOR) { reply(it.msg, "Here are the swear filters currently in place:\n${swearFilter.getListOfPatterns()}") }
 		commandManager.registerCommand("log") {
 			
 			val arguments = it.arguments
@@ -115,6 +114,7 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 			is MessageDeleteEvent -> {
 				
 				tradeChannelListener.remove(e.channelId, e.messageId)
+				if (botFilter.isBotMessage(e.messageId)) botFilter.setupBotMessage()
 				
 			}
 			is MessageUpdateEvent -> {
