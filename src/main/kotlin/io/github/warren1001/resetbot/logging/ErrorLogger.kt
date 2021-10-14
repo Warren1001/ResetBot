@@ -1,5 +1,6 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.logging
 
+import io.github.warren1001.resetbot.Auriel
 import java.io.File
 import java.io.PrintWriter
 import java.nio.file.Files

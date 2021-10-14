@@ -1,8 +1,8 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.listener
 
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.channel.MessageChannel
-import java.io.File
+import io.github.warren1001.resetbot.Auriel
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.function.Consumer
@@ -13,48 +13,47 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 	
 	companion object {
 		
-		private val blacklistWords = mutableListOf<String>()
-		private val buyBlacklistFile = File("buyBlacklist.txt")
-		var pattern: Pattern
+		val buyBlacklist = mutableListOf<String>()
+		val sellBlacklist = mutableListOf<String>()
 		
-		init {
-			if (buyBlacklistFile.exists()) blacklistWords.addAll(buyBlacklistFile.readLines().map { it.lowercase() })
-			else {
-				buyBlacklistFile.createNewFile()
-				blacklistWords.add("wts")
-				blacklistWords.add("wtt")
-				blacklistWords.add("selling")
-				blacklistWords.add("sell")
-				buyBlacklistFile.writeText(blacklistWords.joinToString(System.lineSeparator()))
-			}
-			pattern = Pattern.compile("(?im)(?:^|[ -=_*~:/\\\\])(${blacklistWords.joinToString("|")})(?:\$|[ -=_*~:/\\\\])")
-		}
+		var buyPattern: Pattern? = null
+		var sellPattern: Pattern? = null
 		
-		fun addBlacklistWord(word: String): Boolean {
+		var maximumLines: Int = 45
+		
+		fun addBuyBlacklist(word: String): Boolean {
 			val w = word.lowercase()
-			if (blacklistWords.contains(w)) return false
-			if (blacklistWords.isEmpty()) {
-				buyBlacklistFile.writeText(w)
-			} else {
-				buyBlacklistFile.appendText(System.lineSeparator() + w)
-			}
-			blacklistWords.add(w)
-			pattern = Pattern.compile("(?im)(?:^|[ -=_*~:/\\\\])(${blacklistWords.joinToString("|")})(?:\$|[ -=_*~:/\\\\])")
+			if (buyBlacklist.contains(w)) return false
+			buyBlacklist.add(w)
+			buyPattern = Pattern.compile("(?im)(?:^|[ -=_*~:/\\\\])(${buyBlacklist.joinToString("|")})(?:\$|[ -=_*~:/\\\\])")
 			return true
 		}
 		
-		fun removeBlacklistWord(word: String): Boolean {
+		fun removeBuyBlacklist(word: String): Boolean {
 			val w = word.lowercase()
-			if (blacklistWords.isEmpty() || !blacklistWords.contains(w)) return false
-			blacklistWords.remove(w)
-			buyBlacklistFile.writeText(blacklistWords.joinToString(System.lineSeparator()))
-			pattern = Pattern.compile("(?im)(?:^|[ -=_*~:/\\\\])(${blacklistWords.joinToString("|")})(?:\$|[ -=_*~:/\\\\])")
+			if (buyBlacklist.isEmpty() || !buyBlacklist.contains(w)) return false
+			buyBlacklist.remove(w)
+			buyPattern = Pattern.compile("(?im)(?:^|[ -=_*~:/\\\\])(${buyBlacklist.joinToString("|")})(?:\$|[ -=_*~:/\\\\])")
+			return true
+		}
+		
+		fun addSellBlacklist(word: String): Boolean {
+			val w = word.lowercase()
+			if (sellBlacklist.contains(w)) return false
+			sellBlacklist.add(w)
+			sellPattern = Pattern.compile("(?im)(?:^|[ -=_*~:/\\\\])(${sellBlacklist.joinToString("|")})(?:\$|[ -=_*~:/\\\\])")
+			return true
+		}
+		
+		fun removeSellBlacklist(word: String): Boolean {
+			val w = word.lowercase()
+			if (sellBlacklist.isEmpty() || !sellBlacklist.contains(w)) return false
+			sellBlacklist.remove(w)
+			sellPattern = Pattern.compile("(?im)(?:^|[ -=_*~:/\\\\])(${sellBlacklist.joinToString("|")})(?:\$|[ -=_*~:/\\\\])")
 			return true
 		}
 		
 	}
-	
-	private val maximumLines = 45
 	
 	private val usersLastMessage = mutableMapOf<Snowflake, Snowflake>()
 	private val predicate: (ShallowMessage) -> Boolean = {
@@ -98,16 +97,26 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 		}
 		if (predicate.invoke(message)) {
 			
-			val blacklistMatcher = pattern.matcher(message.message.content)
-			if (isBuy && blacklistMatcher.find()) {
-				auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
-				var content = "This is a buy only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
-						" it was deleted. Please make sure that posts in this channel are buy focused and not selling focused. " +
-						"1 for 1 item trades are considered selling posts and should go in the respective selling channel. " +
-						"You will have to wait the cooldown to post another message. \n```\n${message.message.content.replace("`", "\\`")}\n```"
-				if (content.length > 2000) content = content.substring(0, 2000)
-				message.author.privateChannel.flatMap { it.createMessage(content) }.subscribe()
-				return
+			if (isBuy && buyPattern != null) {
+				val blacklistMatcher = buyPattern!!.matcher(message.message.content)
+				if (blacklistMatcher.find()) {
+					auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
+					var content = "This is a buy only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
+							" it was deleted. Please make sure that posts in this channel are buy focused and not selling focused. " +
+							"1 for 1 item trades are considered selling posts and should go in the respective selling channel. " +
+							"You will have to wait the cooldown to post another message. \n```\n${message.message.content.replace("`", "\\`")}\n```"
+					if (content.length > 2000) content = content.substring(0, 2000)
+					message.author.privateChannel.flatMap { it.createMessage(content) }.subscribe()
+				}
+			} else if (!isBuy && sellPattern != null) {
+				val blacklistMatcher = sellPattern!!.matcher(message.message.content)
+				if (blacklistMatcher.find()) {
+					auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
+					var content = "This is a sell only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
+							" it was deleted. \n```\n${message.message.content.replace("`", "\\`")}\n```"
+					if (content.length > 2000) content = content.substring(0, 2000)
+					message.author.privateChannel.flatMap { it.createMessage(content) }.subscribe()
+				}
 			} else if (message.message.content.split('\n').size > maximumLines) {
 				auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
 				var content = "You can have at most $maximumLines lines in your post. " +

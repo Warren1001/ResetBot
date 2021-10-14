@@ -6,6 +6,13 @@ import discord4j.core.GatewayDiscordClient
 import discord4j.core.event.domain.message.MessageCreateEvent
 import discord4j.core.event.domain.message.MessageDeleteEvent
 import discord4j.core.event.domain.message.MessageUpdateEvent
+import io.github.warren1001.resetbot.listener.MessageListener
+import io.github.warren1001.resetbot.listener.UserManager
+import io.github.warren1001.resetbot.logging.Logger
+import io.github.warren1001.resetbot.utils.FileUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -43,7 +50,7 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 	}
 	
 	fun saveJson() {
-		FileUtils.saveJsonLines("data.json", jsonObject)
+		CoroutineScope(Dispatchers.IO).async { FileUtils.saveJsonLines("data.json", jsonObject) }
 	}
 	
 	fun getMessageListener(): MessageListener {

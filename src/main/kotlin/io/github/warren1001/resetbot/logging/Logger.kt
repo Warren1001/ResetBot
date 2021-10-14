@@ -1,4 +1,7 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.logging
+
+import io.github.warren1001.resetbot.Auriel
+import io.github.warren1001.resetbot.listener.ShallowMessage
 
 class Logger(private val auriel: Auriel) {
 	

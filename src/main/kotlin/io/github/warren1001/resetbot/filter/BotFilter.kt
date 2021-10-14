@@ -1,9 +1,10 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.filter
 
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.Message
 import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.spec.MessageEditSpec
+import io.github.warren1001.resetbot.Auriel
 import java.time.Instant
 import kotlin.concurrent.timer
 import kotlin.random.Random
@@ -20,14 +21,22 @@ class BotFilter(private val auriel: Auriel) {
 	init {
 		
 		// just gonna hardcode these
-		captchas.add(Captcha("__Which item was the last item MrLlama needed to complete his holy grail?__\n\n" +
-						"Tyrael's Might\nDeath's Web\n***Mang Song's Lesson***\nTemplar's Might\nGriswold's Redemption", "mang", "song", "lesson"))
-		captchas.add(Captcha("__What is MrLlama's first name?__\n\n" +
-				"Steve\nLlama\nPete\nDavidson\n***Alex***", "alex", "pete", "davidson"))
-		captchas.add(Captcha("__What is MrLlama's brand identity animal?__\n\n" +
-				"Alpaca\n***Llama***\nCamel\nPete Davidson", "llama", "lamma", "lama", "camel", "pete", "davidson"))
-		captchas.add(Captcha("__Does MrLlama have a YouTube voice?__\n\n" +
-				"**Yes**\nNo", "yes"))
+		captchas.add(
+			Captcha("__Which item was the last item MrLlama needed to complete his holy grail?__\n\n" +
+						"Tyrael's Might\nDeath's Web\n***Mang Song's Lesson***\nTemplar's Might\nGriswold's Redemption", "mang", "song", "lesson")
+		)
+		captchas.add(
+			Captcha("__What is MrLlama's first name?__\n\n" +
+				"Steve\nLlama\nPete\nDavidson\n***Alex***", "alex", "pete", "davidson")
+		)
+		captchas.add(
+			Captcha("__What is MrLlama's brand identity animal?__\n\n" +
+				"Alpaca\n***Llama***\nCamel\nPete Davidson", "llama", "lamma", "lama", "camel", "pete", "davidson")
+		)
+		captchas.add(
+			Captcha("__Does MrLlama have a YouTube voice?__\n\n" +
+				"**Yes**\nNo", "yes")
+		)
 		currentCaptcha = captchas[Random.nextInt(captchas.size)]
 		
 		val role = auriel.getJson()["human.id.role"]

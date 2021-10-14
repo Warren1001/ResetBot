@@ -1,4 +1,4 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.filter
 
 import discord4j.core.`object`.entity.Message
 

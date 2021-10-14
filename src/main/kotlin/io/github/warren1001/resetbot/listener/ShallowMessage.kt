@@ -1,25 +1,15 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.listener
 
 import discord4j.core.`object`.entity.Message
 import discord4j.core.`object`.entity.User
 import discord4j.core.`object`.entity.channel.MessageChannel
+import io.github.warren1001.resetbot.Auriel
 
-class ShallowMessage {
+class ShallowMessage(private val auriel: Auriel, val message: Message, val channel: MessageChannel) {
 	
-	private val auriel: Auriel
-	
-	val message: Message
-	val channel: MessageChannel
-	val author: User
+	val author: User = message.author.get()
 	
 	var deleted = false
-	
-	constructor(auriel: Auriel, message: Message, channel: MessageChannel) {
-		this.auriel = auriel
-		this.message = message
-		this.channel = channel
-		this.author = message.author.get()
-	}
 	
 	fun delete() {
 		if (!deleted) {

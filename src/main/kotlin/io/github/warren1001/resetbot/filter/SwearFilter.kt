@@ -1,16 +1,20 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.filter
 
-import java.io.File
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import io.github.warren1001.resetbot.Auriel
+import io.github.warren1001.resetbot.utils.FileUtils
+import io.github.warren1001.resetbot.listener.ShallowMessage
 import java.util.regex.Pattern
 
 class SwearFilter(private val auriel: Auriel) {
 	
-	private val swearFilterFile = File("swearFilterPatterns.txt")
-	private val patterns = mutableSetOf<Filter>()
+	private val patterns = if (auriel.getJson().has("filter.swear.filters")) { FileUtils.gson.fromJson<MutableSet<Filter>>(auriel.getJson()["filter.swear.filters"].toString()) }
+		else { mutableSetOf() }
 	
 	init {
 		
-		if (swearFilterFile.exists()) {
+		/*if (swearFilterFile.exists()) {
 			swearFilterFile.forEachLine {
 				val args = it.split(",", limit = 2)
 				patterns.add(Filter(Pattern.compile(args[0]), args[1]))
@@ -23,18 +27,15 @@ class SwearFilter(private val auriel: Auriel) {
 			patterns.add(Filter(Pattern.compile("(?i)([s]+[h]+[i]+[t]+)"), "crap"))
 			swearFilterFile.writeText(patterns.joinToString(System.lineSeparator()) { "${it.pattern.pattern()},${it.replacement}" })
 			
-		}
+		}*/
 	
 	}
 	
 	fun addSwearFilterPattern(pattern: String, replacement: String): Boolean {
 		if (containsPattern(pattern)) return false
-		if (patterns.isEmpty()) {
-			swearFilterFile.writeText("$pattern,$replacement")
-		} else {
-			swearFilterFile.appendText("${System.lineSeparator()}$pattern,$replacement")
-		}
 		patterns.add(Filter(Pattern.compile(pattern), replacement))
+		auriel.getJson().add("filter.swear.filters", FileUtils.gson.toJsonTreeType(patterns))
+		auriel.saveJson()
 		return true
 	}
 	
@@ -48,7 +49,8 @@ class SwearFilter(private val auriel: Auriel) {
 	fun removeSwearFilterPattern(pattern: String): Boolean {
 		if (patterns.isEmpty() || !containsPattern(pattern)) return false
 		patterns.removeIf { it.pattern.pattern() == pattern }
-		swearFilterFile.writeText(patterns.joinToString(System.lineSeparator()) { "${it.pattern.pattern()},${it.replacement}" })
+		auriel.getJson().add("filter.swear.filters", FileUtils.gson.toJsonTreeType(patterns))
+		auriel.saveJson()
 		return true
 	}
 	
@@ -107,5 +109,8 @@ class SwearFilter(private val auriel: Auriel) {
 		
 		return true
 	}
+	
+	inline fun <reified T> Gson.fromJson(json: String) = fromJson<T>(json, object: TypeToken<T>() {}.type)
+	inline fun <reified T> Gson.toJsonTreeType(t: T) = toJsonTree(t, object: TypeToken<T>() {}.type)
 
 }

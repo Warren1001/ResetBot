@@ -1,5 +1,6 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.utils
 
+import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -12,7 +13,7 @@ class FileUtils {
 
 	companion object {
 		
-		private val gson = GsonBuilder().setPrettyPrinting().create()
+		val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 		
 		fun readJsonLines(path: String): JsonObject {
 			return JsonParser.parseString(try { Files.readString(Paths.get(path)) } catch (e: IOException) { "" }).asJsonObject

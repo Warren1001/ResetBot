@@ -1,15 +1,15 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.listener
 
 import discord4j.common.util.Snowflake
+import io.github.warren1001.resetbot.Auriel
 
 class UserManager(private val auriel: Auriel) {
 	
 	companion object {
-		val EVERYONE = 0
-		val MODERATOR = 5
-		val ADMINISTRATOR = 10
+		const val EVERYONE = 0
+		const val MODERATOR = 5
+		const val ADMINISTRATOR = 10
 	}
-	
 	
 	private val adminRoleId: Snowflake = Snowflake.of(if (auriel.getJson().has("users.role-id.admin")) auriel.getJson()["users.role-id.admin"].asLong else 0L)
 	private val modRoleId: Snowflake = Snowflake.of(if (auriel.getJson().has("users.role-id.mod")) auriel.getJson()["users.role-id.mod"].asLong else 0L)
