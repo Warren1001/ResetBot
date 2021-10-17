@@ -100,7 +100,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 			if (isBuy && buyPattern != null) {
 				val blacklistMatcher = buyPattern!!.matcher(message.message.content)
 				if (blacklistMatcher.find()) {
-					auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
+					message.reply("I am sending you a private message, please check it for why your post was deleted.", true, 15)
 					var content = "This is a buy only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
 							" it was deleted. Please make sure that posts in this channel are buy focused and not selling focused. " +
 							"1 for 1 item trades are considered selling posts and should go in the respective selling channel. " +
@@ -112,7 +112,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 			} else if (!isBuy && sellPattern != null) {
 				val blacklistMatcher = sellPattern!!.matcher(message.message.content)
 				if (blacklistMatcher.find()) {
-					auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
+					message.reply("I am sending you a private message, please check it for why your post was deleted.", true, 15)
 					var content = "This is a sell only channel. Since your post contained the term '${blacklistMatcher.group(1)}'," +
 							" it was deleted. \n```\n${message.message.content.replace("`", "\\`")}\n```"
 					if (content.length > 2000) content = content.substring(0, 2000)
@@ -120,7 +120,7 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 					return
 				}
 			} else if (message.message.content.split('\n').size > maximumLines) {
-				auriel.getMessageListener().reply(message, "I am sending you a private message, please check it for why your post was deleted.", true, 15)
+				message.reply("I am sending you a private message, please check it for why your post was deleted.", true, 15)
 				var content = "You can have at most $maximumLines lines in your post. " +
 						"You will have to wait the cooldown to post another message with $maximumLines or less lines.\n```\n${message.message.content.replace("`", "\\`")}\n```"
 				if (content.length > 2000) content = content.substring(0, 2000)

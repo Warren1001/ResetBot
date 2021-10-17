@@ -78,14 +78,14 @@ class SwearFilter(private val auriel: Auriel) {
 		
 		if (!flagged) return false
 		
-		auriel.getMessageListener().delete(message, stringBuilder.toString())
+		message.delete(stringBuilder.toString())
 		
 		val replyContent = "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)"
 		
 		if (repost) {
-			auriel.getMessageListener().replyDeleted(message, "$replyContent\n\n${message.author.mention} said: $content")
+			message.replyDeleted("$replyContent\n\n${message.author.mention} said: $content")
 		} else {
-			auriel.getMessageListener().replyDeleted(message, "I am sending you a private message, please check it for why your post was deleted.", duration)
+			message.replyDeleted("I am sending you a private message, please check it for why your post was deleted.", duration)
 			var pmMsg = "Your message contained a swear or censored word in it, so it was deleted. Remember that this is a family friendly community. :)\n" +
 					"These are the words (or parts of words) that need to be removed: $foundWords\n```\n${message.message.content.replace("`", "\\`")}\n```"
 			if (pmMsg.length > 2000) pmMsg = pmMsg.substring(0, 2000)

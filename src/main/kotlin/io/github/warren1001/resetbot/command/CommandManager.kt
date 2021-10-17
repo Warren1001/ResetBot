@@ -35,7 +35,7 @@ class CommandManager(private val auriel: Auriel, private val messageListener: Me
 		if (!commands.containsKey(commandName)) return false
 		val command = commands[commandName]!!
 		if (!auriel.getUserManager().hasPermission(msg.author.id, command.permission)) return false
-		if (!command.action.invoke(CommandContext(msg, if (args.size == 1) "" else args[1]))) messageListener.reply(msg, command.usage)
+		if (!command.action.invoke(CommandContext(msg, if (args.size == 1) "" else args[1]))) msg.reply(command.usage)
 		return true
 	}
 	

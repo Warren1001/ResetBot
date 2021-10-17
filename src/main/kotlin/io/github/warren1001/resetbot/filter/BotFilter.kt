@@ -2,30 +2,56 @@ package io.github.warren1001.resetbot.filter
 
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
+import discord4j.core.`object`.component.ActionRow
+import discord4j.core.`object`.component.Button
 import discord4j.core.`object`.entity.Message
 import discord4j.core.`object`.entity.channel.MessageChannel
+import discord4j.core.event.domain.interaction.ButtonInteractEvent
 import discord4j.core.spec.MessageEditSpec
 import io.github.warren1001.resetbot.Auriel
-import java.time.Instant
 import kotlin.concurrent.timer
-import kotlin.random.Random
 
 class BotFilter(private val auriel: Auriel) {
 	
-	private val captchas = mutableListOf<Captcha>()
+	//private val captchas = mutableListOf<Captcha>()
 	private val humanJsonObject = if (auriel.getJson().has("human") && auriel.getJson()["human"].isJsonObject) auriel.getJson()["human"].asJsonObject else JsonObject()
 	private val idJsonObject = if (humanJsonObject.has("id") && humanJsonObject["id"].isJsonObject) humanJsonObject["id"].asJsonObject else JsonObject()
-	private var currentCaptcha: Captcha
+	private val msgJsonObject = if (humanJsonObject.has("messages") && humanJsonObject["messages"].isJsonObject) humanJsonObject["messages"].asJsonObject else JsonObject()
+	//private var currentCaptcha: Captcha
 	private var humanRoleId: Snowflake? = null
 	private var humanChannelId: Snowflake? = null
 	private var botMessageId: Snowflake? = null
 	private var botMessage: Message? = null
-	private var setEarly = false
+	//private var setEarly = false
+	
+	private val buttonList = mutableListOf(Button.primary("captcha-correct", "CLICK ME"), Button.danger("captcha-wrong1", "NO"),
+		Button.danger("captcha-wrong2", "NO"), Button.danger("captcha-wrong3", "NO"), Button.danger("captcha-wrong4", "NO"))
+	
+	private var successMsg: String = if (msgJsonObject.has("success")) msgJsonObject["success"].asString else "You are now in the server!"
+	private var alreadyInMsg: String = if (msgJsonObject.has("already-in")) msgJsonObject["already-in"].asString else "You are already in the server!"
 	
 	init {
+		auriel.getGateway().on(ButtonInteractEvent::class.java).onErrorContinue { it, _ -> auriel.getLogger().logError(it) }.flatMap {
+			
+			val member = it.interaction.member.get()
+			
+			if (!member.roleIds.contains(humanRoleId!!)) {
+				
+				if (it.customId.equals("captcha-correct")) {
+					member.addRole(humanRoleId!!).doOnError { auriel.getLogger().logError(it) }.subscribe()
+					return@flatMap it.reply(successMsg).withEphemeral(true)
+				} else {
+					return@flatMap it.reply("Wrong button.").withEphemeral(true)
+				}
+				
+			}
+			
+			return@flatMap it.reply(alreadyInMsg).withEphemeral(true)
+			
+		}.subscribe()
 		
 		// just gonna hardcode these
-		captchas.add(
+		/*captchas.add(
 			Captcha(
 				"__Which item was the last item MrLlama needed to complete his holy grail?__\n\n" +
 						"Tyrael's Might\nDeath's Web\n***Mang Song's Lesson***\nTemplar's Might\nGriswold's Redemption", "mang", "song", "lesson"
@@ -49,7 +75,7 @@ class BotFilter(private val auriel: Auriel) {
 						"**Yes**\nNo", "yes"
 			)
 		)
-		currentCaptcha = captchas[Random.nextInt(captchas.size)]
+		currentCaptcha = captchas[Random.nextInt(captchas.size)]*/
 		
 		if (idJsonObject.has("role")) {
 			humanRoleId = Snowflake.of(idJsonObject["role"].asLong)
@@ -63,11 +89,27 @@ class BotFilter(private val auriel: Auriel) {
 				.subscribe { trySetFirstMessage(it) }
 		} else if (humanChannelId != null) setupBotMessage()
 		
-		if (humanRoleId != null && humanChannelId != null) checkPreviousMessages()
+		//if (humanRoleId != null && humanChannelId != null) checkPreviousMessages()
 		
 	}
 	
-	fun humanCheck(msg: Message): Boolean {
+	fun setSuccessMessage(message: String) {
+		successMsg = message
+		msgJsonObject.addProperty("success", message)
+		humanJsonObject.add("messages", msgJsonObject)
+		auriel.getJson().add("human", humanJsonObject)
+		auriel.saveJson()
+	}
+	
+	fun setAlreadyInMessage(message: String) {
+		alreadyInMsg = message
+		msgJsonObject.addProperty("already-in", alreadyInMsg)
+		humanJsonObject.add("messages", msgJsonObject)
+		auriel.getJson().add("human", humanJsonObject)
+		auriel.saveJson()
+	}
+	
+	/*fun humanCheck(msg: Message): Boolean {
 		if ((humanRoleId == null || humanChannelId == null)) {
 			auriel.getLogger().getChannelLogger().logError("u fukin noob, setup the bot filter!!!!")
 			return false
@@ -81,12 +123,12 @@ class BotFilter(private val auriel: Auriel) {
 			return true
 		}
 		return false
-	}
+	}*/
 	
 	fun setHumanRoleId(id: Snowflake) {
 		humanRoleId = id
 		if (humanChannelId != null) {
-			checkPreviousMessages()
+			//checkPreviousMessages()
 			setRandomCaptcha()
 		}
 		idJsonObject.addProperty("role", id.asLong())
@@ -98,25 +140,25 @@ class BotFilter(private val auriel: Auriel) {
 	fun setHumanChannelId(id: Snowflake) {
 		humanChannelId = id
 		setupBotMessage()
-		if (humanRoleId != null) checkPreviousMessages()
+		//if (humanRoleId != null) checkPreviousMessages()
 		idJsonObject.addProperty("channel", id.asLong())
 		humanJsonObject.add("id", idJsonObject)
 		auriel.getJson().add("human", humanJsonObject)
 		auriel.saveJson()
 	}
 	
-	fun checkPreviousMessages() {
+	/*fun checkPreviousMessages() {
 		auriel.getGateway().getChannelById(humanChannelId!!).doOnError { auriel.getLogger().logError(it) }.cast(MessageChannel::class.java)
 			.flatMapMany { it.getMessagesBefore(Snowflake.of(Instant.now())) }.filter { it.author.isEmpty || !it.author.get().isBot }
 			.subscribe {
 				if (it.author.isEmpty) it.delete().subscribe()
 				else humanCheck(it)
 			}
-	}
+	}*/
 	
 	fun setBotMessage(msg: Message) {
 		botMessage = msg
-		val interval = (1000 * 60 * 5).toLong()
+		val interval = (1000 * 30).toLong()
 		timer("randomizeCaptcha", true, interval, interval) { setRandomCaptcha() }
 	}
 	
@@ -125,22 +167,20 @@ class BotFilter(private val auriel: Auriel) {
 	}
 	
 	fun setRandomCaptcha() {
-		if (botMessage == null || !auriel.hasWarrenMentionInit()) {
-			setEarly = true
+		if (botMessage == null/* || !auriel.hasWarrenMentionInit()*/) {
+			//setEarly = true
 			return
 		}
-		setEarly = false
-		var nextCaptcha = captchas[Random.nextInt(captchas.size)]
-		while (nextCaptcha == currentCaptcha) {
-			nextCaptcha = captchas[Random.nextInt(captchas.size)]
-		}
-		currentCaptcha = nextCaptcha
-		val content = "__**ANSWER THE FOLLOWING CAPTCHA QUESTION TO GAIN ACCESS TO THE SERVER**__\n\n" +
-				"${currentCaptcha.getMessage()}\n\n\n" +
-				"If you know you are typing the right answer and you aren't given access to the server, check the channel list. " +
-				"If you can see all the channels, just click any of those and you're good to go. If you can't see all the channels, restart Discord. " +
-				"If you still can't see all the channels, message ${auriel.getWarrenMention()} or a mod.\nThe captcha will change every 5 minutes."
-		botMessage!!.edit(MessageEditSpec.create().withContentOrNull(content)).subscribe()
+		//setEarly = false
+		randomizeButtons()
+		// can get what i deleted from github
+	}
+	
+	fun randomizeButtons() {
+		buttonList.shuffle()
+		botMessage!!.edit(MessageEditSpec.create().withComponents(ActionRow.of(buttonList))
+			.withContentOrNull("Sometimes the Discord client doesn't update properly when you click the button. If this is the case for you, restart your Discord then look for the new channels."))
+			.subscribe()
 	}
 	
 	fun setOfflineMessage() {
@@ -149,7 +189,7 @@ class BotFilter(private val auriel: Auriel) {
 			MessageEditSpec.create().withContentOrNull(
 				"I am currently being restarted. Guess I wasn't good enough :( " +
 						"Please wait up to a minute for me to return."
-			)
+			).withComponentsOrNull(mutableListOf())
 		).subscribe()
 	}
 	
@@ -165,7 +205,7 @@ class BotFilter(private val auriel: Auriel) {
 	
 	fun trySetFirstMessage(msg: Message, notEarly: Boolean = false) {
 		setBotMessage(msg)
-		if (notEarly || setEarly) setRandomCaptcha()
+		if (notEarly/* || setEarly*/) setRandomCaptcha()
 	}
 	
 }

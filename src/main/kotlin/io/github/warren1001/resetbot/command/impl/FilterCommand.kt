@@ -22,9 +22,9 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 					val replacement = args[3]
 					
 					if (auriel.getMessageListener().getSwearFilter().addSwearFilterPattern(pattern, replacement)) {
-						auriel.getMessageListener().reply(ctx.msg, "Added '$pattern' pattern with '$replacement' replacement to the swear filters list.")
+						ctx.msg.reply("Added '$pattern' pattern with '$replacement' replacement to the swear filters list.")
 					} else {
-						auriel.getMessageListener().reply(ctx.msg, "'$pattern' pattern is already on the swear filters list.")
+						ctx.msg.reply("'$pattern' pattern is already on the swear filters list.")
 					}
 					
 					return true
@@ -39,9 +39,9 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 					val replacement = args[3]
 					
 					if (auriel.getMessageListener().getSwearFilter().addSwearFilterPattern(pattern, replacement)) {
-						auriel.getMessageListener().reply(ctx.msg, "Added '$pattern' pattern with '$replacement' replacement to the swear filters list.")
+						ctx.msg.reply("Added '$pattern' pattern with '$replacement' replacement to the swear filters list.")
 					} else {
-						auriel.getMessageListener().reply(ctx.msg, "'$pattern' pattern is already on the swear filters list.")
+						ctx.msg.reply("'$pattern' pattern is already on the swear filters list.")
 					}
 					
 					return true
@@ -59,9 +59,9 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 					val pattern = args[2]
 					
 					if (auriel.getMessageListener().getSwearFilter().removeSwearFilterPattern(pattern)) {
-						auriel.getMessageListener().reply(ctx.msg, "Removed '$pattern' pattern from the swear filters list.")
+						ctx.msg.reply("Removed '$pattern' pattern from the swear filters list.")
 					} else {
-						auriel.getMessageListener().reply(ctx.msg, "'$pattern' pattern is not on the swear filters list.")
+						ctx.msg.reply("'$pattern' pattern is not on the swear filters list.")
 					}
 					
 					return true
@@ -76,9 +76,9 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 				val pattern = auriel.getMessageListener().getSwearFilter().constructBasicPattern(args[2])
 				
 				if (auriel.getMessageListener().getSwearFilter().removeSwearFilterPattern(pattern)) {
-					auriel.getMessageListener().reply(ctx.msg, "Removed '$pattern' pattern from the swear filters list.")
+					ctx.msg.reply("Removed '$pattern' pattern from the swear filters list.")
 				} else {
-					auriel.getMessageListener().reply(ctx.msg, "'$pattern' pattern is not on the swear filters list.")
+					ctx.msg.reply("'$pattern' pattern is not on the swear filters list.")
 				}
 				
 				return true

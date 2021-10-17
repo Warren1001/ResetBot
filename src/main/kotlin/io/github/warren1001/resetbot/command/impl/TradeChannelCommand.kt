@@ -54,9 +54,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 							
 							if (TradeChannelMessageListener.addBuyBlacklist(word)) {
 								saveBlacklist(true)
-								auriel.getMessageListener().reply(ctx.msg, "Added '$word' as a blacklist word to the buy list.", true, 10L)
+								ctx.msg.reply("Added '$word' as a blacklist word to the buy list.", true, 10L)
 							} else {
-								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was already blacklisted in the buy list.", true, 10L)
+								ctx.msg.reply("The word '$word' was already blacklisted in the buy list.", true, 10L)
 							}
 							
 							
@@ -64,9 +64,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 							
 							if (TradeChannelMessageListener.addSellBlacklist(word)) {
 								saveBlacklist(false)
-								auriel.getMessageListener().reply(ctx.msg, "Added '$word' as a blacklist word to the sell list.", true, 10L)
+								ctx.msg.reply("Added '$word' as a blacklist word to the sell list.", true, 10L)
 							} else {
-								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was already blacklisted in the sell list.", true, 10L)
+								ctx.msg.reply("The word '$word' was already blacklisted in the sell list.", true, 10L)
 							}
 							
 						}
@@ -86,9 +86,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 							
 							if (TradeChannelMessageListener.removeBuyBlacklist(word)) {
 								saveBlacklist(true)
-								auriel.getMessageListener().reply(ctx.msg, "Removed '$word' as a blacklist word from the buy list.", true, 10L)
+								ctx.msg.reply("Removed '$word' as a blacklist word from the buy list.", true, 10L)
 							} else {
-								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was not blacklisted in the buy list.", true, 10L)
+								ctx.msg.reply("The word '$word' was not blacklisted in the buy list.", true, 10L)
 							}
 							
 							
@@ -96,9 +96,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 							
 							if (TradeChannelMessageListener.removeSellBlacklist(word)) {
 								saveBlacklist(false)
-								auriel.getMessageListener().reply(ctx.msg, "Removed '$word' as a blacklist word from the sell list.", true, 10L)
+								ctx.msg.reply("Removed '$word' as a blacklist word from the sell list.", true, 10L)
 							} else {
-								auriel.getMessageListener().reply(ctx.msg, "The word '$word' was not blacklisted in the sell list.", true, 10L)
+								ctx.msg.reply("The word '$word' was not blacklisted in the sell list.", true, 10L)
 							}
 							
 						}
@@ -129,9 +129,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 					}
 					
 					if (removed) {
-						auriel.getMessageListener().reply(ctx.msg, "Added '$word' as a blacklist word to both lists.", true, 10L)
+						ctx.msg.reply("Added '$word' as a blacklist word to both lists.", true, 10L)
 					} else {
-						auriel.getMessageListener().reply(ctx.msg, "The word '$word' was already blacklisted in both lists.", true, 10L)
+						ctx.msg.reply("The word '$word' was already blacklisted in both lists.", true, 10L)
 					}
 					
 					return true
@@ -151,9 +151,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 					}
 					
 					if (removed) {
-						auriel.getMessageListener().reply(ctx.msg, "Removed '$word' as a blacklist word from both lists.", true, 10L)
+						ctx.msg.reply("Removed '$word' as a blacklist word from both lists.", true, 10L)
 					} else {
-						auriel.getMessageListener().reply(ctx.msg, "The word '$word' was not blacklisted in either list.", true, 10L)
+						ctx.msg.reply("The word '$word' was not blacklisted in either list.", true, 10L)
 					}
 					
 					return true
@@ -175,17 +175,17 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 							
 							channelsJsonArray.filter { it.asJsonObject["id"].asLong == channelId.asLong() }.forEach { it.asJsonObject.addProperty("is-buy", isBuy) }
 							saveChannels()
-							auriel.getMessageListener().reply(ctx.msg, "Set this channel as a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
+							ctx.msg.reply("Set this channel as a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
 							
 						} else {
-							auriel.getMessageListener().reply(ctx.msg, "This channel was already a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
+							ctx.msg.reply("This channel was already a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
 						}
 						
 					} else {
 						tradeListeners[channelId] = TradeChannelMessageListener(auriel, channelId, isBuy)
 						channelsJsonArray.add(JsonObjectBuilder().addProperty("id", channelId.asLong()).addProperty("is-buy", isBuy).build())
 						saveChannels()
-						auriel.getMessageListener().reply(ctx.msg, "Set this channel as a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
+						ctx.msg.reply("Set this channel as a " + (if (isBuy) "buying" else "selling") + " channel.", true, 10L)
 					}
 					
 					return true
@@ -199,7 +199,7 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 					TradeChannelMessageListener.maximumLines = maximumLines
 					tradeJsonObject.addProperty("maximum-lines", maximumLines)
 					auriel.getJson().add("trade", tradeJsonObject)
-					auriel.getMessageListener().reply(ctx.msg, "Set the maximum lines in a trade channel to $maximumLines.", true, 10L)
+					ctx.msg.reply("Set the maximum lines in a trade channel to $maximumLines.", true, 10L)
 					auriel.saveJson()
 					
 					return true
@@ -215,9 +215,9 @@ class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boole
 					tradeListeners.remove(channelId)
 					channelsJsonArray.removeAll { it.asJsonObject["id"].asLong == channelId.asLong() }
 					saveChannels()
-					auriel.getMessageListener().reply(ctx.msg, "Removed this channel as a trading channel.", true, 10L)
+					ctx.msg.reply("Removed this channel as a trading channel.", true, 10L)
 				} else {
-					auriel.getMessageListener().reply(ctx.msg, "This channel is not a trading channel.", true, 10L)
+					ctx.msg.reply("This channel is not a trading channel.", true, 10L)
 				}
 				
 				return true

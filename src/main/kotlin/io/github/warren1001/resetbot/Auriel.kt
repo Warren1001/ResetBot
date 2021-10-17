@@ -15,12 +15,12 @@ import java.time.format.DateTimeFormatter
 
 class Auriel(private val gateway: GatewayDiscordClient) {
 	
+	private val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss:SS")
 	private val jsonObject = FileUtils.readJsonLines("data.json")
-	private val messageListener: MessageListener = MessageListener(this)
 	private val userManager = UserManager()
 	private val logger: Logger = Logger(this)
-	private val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss:SS")
 	private lateinit var warrenMention: String
+	private val messageListener: MessageListener = MessageListener(this)
 	
 	init {
 		gateway.on(MessageCreateEvent::class.java).onErrorContinue { error, _ -> logger.logError(error) }.subscribe(messageListener)
@@ -92,6 +92,7 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 	fun stop() {
 		messageListener.getBotFilter().setOfflineMessage()
 		saveJson()
+		messageListener.getTriviaManager().savePlayerData()
 		gateway.logout().subscribe()
 		logger.stop()
 	}
