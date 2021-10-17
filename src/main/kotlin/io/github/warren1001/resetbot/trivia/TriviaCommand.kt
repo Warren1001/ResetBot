@@ -1,6 +1,7 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.trivia
 
 import discord4j.common.util.Snowflake
+import io.github.warren1001.resetbot.Auriel
 import io.github.warren1001.resetbot.command.CommandContext
 
 class TriviaCommand(private val auriel: Auriel): (CommandContext) -> Boolean {

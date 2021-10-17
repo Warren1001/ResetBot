@@ -1,4 +1,4 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.trivia
 
 import kotlin.random.Random
 

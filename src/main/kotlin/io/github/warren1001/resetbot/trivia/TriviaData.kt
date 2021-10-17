@@ -1,4 +1,4 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.trivia
 
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake

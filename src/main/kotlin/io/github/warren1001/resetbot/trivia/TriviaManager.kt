@@ -1,9 +1,10 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.trivia
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
 import discord4j.core.`object`.entity.channel.MessageChannel
+import io.github.warren1001.resetbot.Auriel
 import io.github.warren1001.resetbot.listener.ShallowMessage
 import io.github.warren1001.resetbot.utils.FileUtils
 import java.util.*

@@ -8,8 +8,8 @@ import discord4j.core.event.domain.message.MessageEvent
 import discord4j.core.event.domain.message.MessageUpdateEvent
 import discord4j.rest.util.Permission
 import io.github.warren1001.resetbot.Auriel
-import io.github.warren1001.resetbot.TriviaCommand
-import io.github.warren1001.resetbot.TriviaManager
+import io.github.warren1001.resetbot.trivia.TriviaCommand
+import io.github.warren1001.resetbot.trivia.TriviaManager
 import io.github.warren1001.resetbot.command.CommandManager
 import io.github.warren1001.resetbot.command.impl.FilterCommand
 import io.github.warren1001.resetbot.command.impl.TradeChannelCommand
