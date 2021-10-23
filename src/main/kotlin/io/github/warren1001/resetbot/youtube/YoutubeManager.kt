@@ -6,7 +6,11 @@ import com.google.api.services.youtube.YouTube
 import com.google.api.services.youtube.YouTubeRequestInitializer
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
+import discord4j.core.`object`.component.ActionRow
+import discord4j.core.`object`.component.Button
 import discord4j.core.`object`.entity.channel.MessageChannel
+import discord4j.core.event.domain.interaction.ButtonInteractionEvent
+import discord4j.core.spec.MessageCreateSpec
 import io.github.warren1001.resetbot.Auriel
 import kotlin.concurrent.timer
 
@@ -17,6 +21,9 @@ class YoutubeManager(private val auriel: Auriel, key: String) {
 	private var youtubeChannelId: Snowflake = Snowflake.of(if (youtubeJsonObject.has("channel")) youtubeJsonObject["channel"].asLong else 0L)
 	private var youtubeChannel: MessageChannel? = null
 	private var message: String = if (youtubeJsonObject.has("message")) youtubeJsonObject["message"].asString else "{title} {link}"
+	private var roleId: Snowflake = Snowflake.of(if (youtubeJsonObject.has("role")) youtubeJsonObject["role"].asLong else 0L)
+	
+	private val buttonList = mutableListOf(Button.primary("youtube-role-give", "Give me the role."), Button.danger("youtube-role-remove", "I don't want the role anymore."))
 	
 	private val playlistItemsRequest: YouTube.PlaylistItems.List;
 	private val playlistItemsRequestLimit: YouTube.PlaylistItems.List;
@@ -45,8 +52,34 @@ class YoutubeManager(private val auriel: Auriel, key: String) {
 			}
 		}
 		
+		auriel.getGateway().on(ButtonInteractionEvent::class.java).onErrorContinue { it, _ -> auriel.getLogger().logError(it) }.filter { it.customId.startsWith("youtube-role-") }.flatMap {
+			
+			val member = it.interaction.member.get()
+			
+			if (it.customId.equals("youtube-role-give")) {
+				
+				if (member.roleIds.contains(roleId)) {
+					return@flatMap it.reply("You already have the role to receive notifications for new YouTube videos.").withEphemeral(true)
+				} else {
+					member.addRole(roleId).doOnError { auriel.getLogger().logError(it) }.subscribe()
+					return@flatMap it.reply("You will now receive notifications for new YouTube videos! They will be announced in ${youtubeChannel!!.mention}.").withEphemeral(true)
+				}
+				
+			} else {
+				
+				if (member.roleIds.contains(roleId)) {
+					member.removeRole(roleId).doOnError { auriel.getLogger().logError(it) }.subscribe()
+					return@flatMap it.reply("You will no longer receive notifications for new YouTube videos.").withEphemeral(true)
+				} else {
+					return@flatMap it.reply("You do not have the role to receive notifications for new YouTube videos.").withEphemeral(true)
+				}
+				
+			}
+			
+		}.subscribe()
+		
 		timer("youtubeUploadChecker", true, 0L, (1000 * 60 * 1).toLong()) { checkForUpload() }
-	
+		
 	}
 	
 	fun checkForUpload() {
@@ -57,13 +90,15 @@ class YoutubeManager(private val auriel: Auriel, key: String) {
 		val playlistItems = if (youtubeLastUpdate == 0L) playlistItemsRequestLimit.execute() else playlistItemsRequest.execute()
 		playlistItems.items.filter { it.snippet.resourceId.kind == "youtube#video" && it.snippet.publishedAt.value > youtubeLastUpdate }
 			.sortedWith(Comparator.comparingLong { it.snippet.publishedAt.value }).forEach {
-			val videoId = it.snippet.resourceId.videoId
-			val time = it.snippet.publishedAt.value
-			val title = it.snippet.title
-			updateLastUpdate(time)
-			youtubeChannel!!.createMessage(message.replace("{title}", title).replace("{link}", "https://www.youtube.com/watch?v=$videoId")
-				.replace("{url}", "https://www.youtube.com/watch?v=$videoId")).subscribe()
-		}
+				val videoId = it.snippet.resourceId.videoId
+				val time = it.snippet.publishedAt.value
+				val title = it.snippet.title
+				updateLastUpdate(time)
+				youtubeChannel!!.createMessage(
+					message.replace("{title}", title).replace("{link}", "https://www.youtube.com/watch?v=$videoId")
+						.replace("{url}", "https://www.youtube.com/watch?v=$videoId")
+				).subscribe()
+			}
 		
 	}
 	
@@ -109,6 +144,21 @@ class YoutubeManager(private val auriel: Auriel, key: String) {
 		youtubeJsonObject.addProperty("message", message)
 		auriel.getJson().add("youtube", youtubeJsonObject)
 		auriel.saveJson()
+	}
+	
+	fun setRoleId(id: Snowflake) {
+		roleId = id
+		youtubeJsonObject.addProperty("role", id.asLong())
+		auriel.getJson().add("youtube", youtubeJsonObject)
+		auriel.saveJson()
+	}
+	
+	fun sendRoleGiveMessage(channel: MessageChannel): Boolean {
+		if (roleId.asLong() == 0L || youtubeChannel == null) return false
+		channel.createMessage(MessageCreateSpec.builder().content("If you would like to receive a role for notifications for new YouTube videos here on Discord, " +
+				"click the button labeled `Give me the role`.\nThe announcements for new YouTube videos will be in ${youtubeChannel!!.mention}.").components(ActionRow.of(buttonList)).build())
+			.subscribe()
+		return true
 	}
 	
 }

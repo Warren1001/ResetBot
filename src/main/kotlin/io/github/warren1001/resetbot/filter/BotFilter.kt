@@ -31,7 +31,7 @@ class BotFilter(private val auriel: Auriel) {
 	private var alreadyInMsg: String = if (msgJsonObject.has("already-in")) msgJsonObject["already-in"].asString else "You are already in the server!"
 	
 	init {
-		auriel.getGateway().on(ButtonInteractionEvent::class.java).onErrorContinue { it, _ -> auriel.getLogger().logError(it) }.flatMap {
+		auriel.getGateway().on(ButtonInteractionEvent::class.java).onErrorContinue { it, _ -> auriel.getLogger().logError(it) }.filter { it.customId.startsWith("captcha-") }.flatMap {
 			
 			val member = it.interaction.member.get()
 			
