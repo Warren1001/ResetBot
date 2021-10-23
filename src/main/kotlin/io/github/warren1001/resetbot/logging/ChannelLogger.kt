@@ -3,8 +3,12 @@ package io.github.warren1001.resetbot.logging
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
+import discord4j.core.`object`.component.ActionRow
+import discord4j.core.`object`.component.Button
 import discord4j.core.`object`.entity.channel.MessageChannel
+import discord4j.core.spec.MessageCreateSpec
 import io.github.warren1001.resetbot.Auriel
+import io.github.warren1001.resetbot.createMessageWithLimit
 import io.github.warren1001.resetbot.listener.ShallowMessage
 import io.github.warren1001.resetbot.utils.JsonObjectBuilder
 import reactor.core.publisher.Flux
@@ -39,22 +43,24 @@ class ChannelLogger(private val auriel: Auriel) {
 		return true
 	}
 	
-	private fun log(message: String) {
+	private fun log(spec: MessageCreateSpec) {
 		Flux.merge(channelsToLogTo.map { auriel.getGateway().getChannelById(it) }).doOnError { auriel.getLogger().logError(it) }.cast(MessageChannel::class.java)
-			.flatMap {
-				var content = message
-				if (content.length > 2000) content = content.substring(0, 2000)
-				return@flatMap it.createMessage(content)
-			}.subscribe()
+			.flatMap { it.createMessageWithLimit(spec) }.subscribe()
 	}
 	
 	fun logDelete(message: ShallowMessage, reason: String) {
-		log("__**Deleted Message**__\n${message.author.mention} in ${message.channel.mention} for: $reason" +
-				"\n```${message.message.content.replace("\n", "**\\n**").replace("```", "\\`\\`\\`")}```")
+		log(MessageCreateSpec.builder().content("__**Deleted Message**__\n${message.author.mention} in ${message.channel.mention} for: $reason" +
+				"\n```${message.message.content.replace("\n", "**\\n**").replace("```", "\\`\\`\\`")}```").build())
+	}
+	
+	fun logDelete(message: ShallowMessage, repostReference: Snowflake, reason: String) {
+		log(MessageCreateSpec.builder().content("__**Deleted Message**__\n${message.author.mention} in ${message.channel.mention} for: $reason" +
+				"\n```${message.message.content.replace("\n", "**\\n**").replace("```", "\\`\\`\\`")}```").addComponent(
+			ActionRow.of(Button.link("https://discord.com/channels/${message.message.guildId.get().asLong()}/${message.channel.id.asLong()}/${repostReference.asLong()}", "Jump to repost"))).build())
 	}
 	
 	fun logError(message: String) {
-		log("__**Bot Error**__\n${auriel.getWarrenMention()}, fix me, dammit: $message")
+		log(MessageCreateSpec.builder().content("__**Bot Error**__\n${auriel.getWarren().mention}, fix me, dammit: $message").build())
 	}
 	
 }

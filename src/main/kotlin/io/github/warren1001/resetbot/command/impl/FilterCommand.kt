@@ -10,6 +10,21 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 		val arguments = ctx.arguments
 		if (arguments.isEmpty() || !arguments.contains(' ')) return false
 		
+		val extendedArgs = arguments.split(' ', limit = 2)
+		
+		if (extendedArgs.size == 2) {
+			
+			if (extendedArgs[0].equals("message", true)) {
+				
+				val msg = extendedArgs[1]
+				auriel.getMessageListener().getSwearFilter().setCensoredMessage(msg)
+				ctx.msg.reply("Set the basic repost censored message to '$msg'.", true, 10L)
+				return true
+				
+			}
+			
+		}
+		
 		val args = arguments.split(' ')
 		
 		if (args.size == 4) {
@@ -67,21 +82,21 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 					return true
 				}
 				
-			}
-			
-		} else if (args[0].equals("word", true)) {
-			
-			if (args[1].equals("remove", true)) {
+			} else if (args[0].equals("word", true)) {
 				
-				val pattern = auriel.getMessageListener().getSwearFilter().constructBasicPattern(args[2])
-				
-				if (auriel.getMessageListener().getSwearFilter().removeSwearFilterPattern(pattern)) {
-					ctx.msg.reply("Removed '$pattern' pattern from the swear filters list.")
-				} else {
-					ctx.msg.reply("'$pattern' pattern is not on the swear filters list.")
+				if (args[1].equals("remove", true)) {
+					
+					val pattern = auriel.getMessageListener().getSwearFilter().constructBasicPattern(args[2])
+					
+					if (auriel.getMessageListener().getSwearFilter().removeSwearFilterPattern(pattern)) {
+						ctx.msg.reply("Removed '$pattern' pattern from the swear filters list.")
+					} else {
+						ctx.msg.reply("'$pattern' pattern is not on the swear filters list.")
+					}
+					
+					return true
 				}
 				
-				return true
 			}
 			
 		}

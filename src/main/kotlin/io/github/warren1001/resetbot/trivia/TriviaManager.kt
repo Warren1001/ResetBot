@@ -42,7 +42,7 @@ class TriviaManager(private val auriel: Auriel) {
 	private var previousQuestion: TriviaQuestion? = null
 	private var currentQuestion: TriviaQuestion? = null
 	private var revealingMessage: RevealingMessage? = null
-
+	
 	init {
 		questionsJsonArray.map { it.asJsonObject }.map { TriviaQuestion(it["question"].asString, it["answer"].asString) }.toCollection(triviaQuestions)
 		if (fastestJsonObject.has("user")) {
@@ -71,8 +71,8 @@ class TriviaManager(private val auriel: Auriel) {
 	}
 	
 	fun handle(msg: ShallowMessage): Boolean {
-		if(stop || !activeQuestion || msg.message.channelId != triviaChannelId) return false
-		if (msg.message.content.replace(regex, "").equals(currentQuestion!!.answer, true)) {
+		if (stop || !activeQuestion || msg.message.channelId != triviaChannelId) return false
+		if (msg.message.content.replace(regex, "").equals(currentQuestion!!.answer.replace(regex, ""), true)) {
 			activeQuestion = false
 			timer!!.cancel()
 			val author = msg.author
@@ -96,10 +96,10 @@ class TriviaManager(private val auriel: Auriel) {
 			val streak = currentStreak.data
 			content += " You answered in ${convertToSecs(time)} seconds."
 			if (time < data.getFastestAnswer()) {
-				if (data.getFastestAnswer() != Long.MAX_VALUE) content += " New personal best! Your previous best was ${convertToSecs(data.getFastestAnswer())} seconds."
+				if (data.getFastestAnswer() != Long.MAX_VALUE) content += " New personal best! Your previous best time was ${convertToSecs(data.getFastestAnswer())} seconds."
 				data.setFastestAnswer(time)
 			}
-			if (isFastestAnswer(time)){
+			if (isFastestAnswer(time)) {
 				val oldTime = fastestAnswer.data
 				val oldUser = fastestAnswer.username
 				val oldUserId = fastestAnswer.userId
@@ -107,7 +107,7 @@ class TriviaManager(private val auriel: Auriel) {
 				if (oldTime != Long.MAX_VALUE && oldUserId != author.id) content += " New record! The previous record was ${convertToSecs(oldTime)} seconds, held by $oldUser."
 			}
 			if (streak > 1) {
-				content += " You are on $streak question streak!"
+				content += " You are on a $streak question streak!"
 				if (streak > data.getLongestStreak()) {
 					if (data.getLongestStreak() > 1) content += " New personal best! Your previous best was ${data.getLongestStreak()} questions."
 					data.setLongestStreak(streak)
@@ -138,7 +138,7 @@ class TriviaManager(private val auriel: Auriel) {
 			activeQuestion = false
 			previousQuestion = currentQuestion
 			if (timer != null) timer!!.cancel()
-			if (triviaChannel != null) triviaChannel!!.createMessage("Trivia has been stopped. Blame ${auriel.getWarrenMention()} :rage:").subscribe()
+			if (triviaChannel != null) triviaChannel!!.createMessage("Trivia has been stopped. Blame ${auriel.getWarren().mention} :rage:").subscribe()
 			triviaJsonObject.addProperty("stopped", stop)
 			auriel.getJson().add("trivia", triviaJsonObject)
 			auriel.saveJson()
@@ -192,7 +192,7 @@ class TriviaManager(private val auriel: Auriel) {
 	}
 	
 	fun addQuestion(question: String, answer: String) {
-		return addQuestion(TriviaQuestion(question, answer.replace(regex, "")))
+		return addQuestion(TriviaQuestion(question, answer))
 	}
 	
 	fun addQuestion(question: TriviaQuestion) {
@@ -206,10 +206,7 @@ class TriviaManager(private val auriel: Auriel) {
 	fun removeQuestion(questionPartial: String): Boolean {
 		val b1 = triviaQuestions.removeIf { it.question.contains(questionPartial) }
 		val b2 = questionsJsonArray.removeAll { it.asJsonObject["question"].asString.contains(questionPartial) }
-		if (b1 && b2) return true
-		if (!b1 && !b2) return false
-		auriel.getLogger().getChannelLogger().logError("aight, u suck at coding")
-		return false
+		return b1 && b2
 	}
 	
 	fun saveQuestions() {
@@ -276,14 +273,10 @@ class TriviaManager(private val auriel: Auriel) {
 		return false
 	}
 	
-	fun updateCurrentStreak(id: Snowflake, username: String, amount: Int): Boolean {
-		if (amount > currentStreak.data) {
-			currentStreak.userId = id
-			currentStreak.username = username
-			currentStreak.data = amount
-			return true
-		}
-		return false
+	fun updateCurrentStreak(id: Snowflake, username: String, amount: Int) {
+		currentStreak.userId = id
+		currentStreak.username = username
+		currentStreak.data = amount
 	}
 	
 	fun setRandomQuestion() {
@@ -294,31 +287,39 @@ class TriviaManager(private val auriel: Auriel) {
 				currentQuestion = triviaQuestions[Random.nextInt(triviaQuestions.size)]
 			}
 			revealingMessage = RevealingMessage(currentQuestion!!.answer)
-			triviaChannel!!.createMessage(currentQuestion!!.question).subscribe {
+			triviaChannel!!.createMessage("**${currentQuestion!!.question}**").subscribe {
 				activeQuestion = true
 				timeAsked = it.timestamp.toEpochMilli()
 			}
-			val interval = (1000 * 15).toLong()
+			val answerLength = currentQuestion!!.answer.length
+			var secondsInterval = 15
+			if (answerLength > 30) secondsInterval -= 7
+			else if (answerLength > 25) secondsInterval -= 5
+			else if (answerLength > 20) secondsInterval -= 3
+			else if (answerLength > 15) secondsInterval -= 1
+			val interval = (1000 * secondsInterval).toLong()
 			timer = timer("triviaHintTimer", true, interval, interval) {
-				if (revealingMessage!!.wouldBeFullyRevealed()) {
+				val count = (answerLength / 10).coerceAtLeast(1)
+				if (revealingMessage!!.wouldBeFullyRevealed(count)) {
 					activeQuestion = false
 					timer!!.cancel()
-					triviaChannel!!.createMessage("${currentQuestion!!.question}\nThe answer was: ${currentQuestion!!.answer}").subscribe()
+					triviaChannel!!.createMessage("__${currentQuestion!!.question}__\nThe answer was: ${currentQuestion!!.answer}").subscribe()
 					currentStreak.userId = Snowflake.of(0L)
 					currentStreak.username = ""
 					currentStreak.data = 0
-					Timer("nextTriviaQuestionRecursive", true).schedule(interval) { if (!stop) setRandomQuestion() }
+					Timer("nextTriviaQuestionRecursive", true).schedule((1000 * 10).toLong()) { if (!stop) setRandomQuestion() }
 					return@timer
 				}
-				triviaChannel!!.createMessage("${currentQuestion!!.question}\nHint: ${revealingMessage!!.reveal().replace("_", "\\_")}").subscribe()
+				triviaChannel!!.createMessage("__${currentQuestion!!.question}__\nHint:  ${revealingMessage!!.reveal(count).replace("_", "\\_").replace(" ", "  ")}").subscribe()
 			}
 		}
 	}
 	
 	fun convertToSecs(time: Long): String {
-		return (time.toDouble() / 1000.0).format(2)
+		val seconds = time.toDouble() / 1000.0
+		return if (seconds < 1) seconds.format(4) else seconds.format(3)
 	}
 	
 	fun Double.format(digits: Int) = "%.${digits}f".format(this)
-
+	
 }

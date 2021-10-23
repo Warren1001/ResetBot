@@ -14,9 +14,10 @@ class Logger(private val auriel: Auriel) {
 	
 	fun logError(error: Throwable) {
 		errorLogger.logError(error)
-		error.message?.let {
-			auriel.error(it)
-			channelLogger.logError(it)
+		error.message?.let { msg ->
+			auriel.error(msg)
+			auriel.getWarren().privateChannel.flatMap { it.createMessage(msg) }.subscribe()
+			// channelLogger.logError(msg)
 		}
 	}
 	

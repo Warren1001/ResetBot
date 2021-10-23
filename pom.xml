@@ -3,27 +3,16 @@
          xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  
   <artifactId>ResetBot</artifactId>
   <groupId>io.github.warren1001</groupId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <packaging>jar</packaging>
-  
   <name>ResetBot</name>
-  
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <kotlin.code.style>official</kotlin.code.style>
     <kotlin.compiler.jvmTarget>13</kotlin.compiler.jvmTarget>
   </properties>
-  
-  <repositories>
-    <repository>
-      <id>mavenCentral</id>
-      <url>https://repo1.maven.org/maven2/</url>
-    </repository>
-  </repositories>
-  
   <build>
     <finalName>ResetBot</finalName>
     <sourceDirectory>src/main/kotlin</sourceDirectory>
@@ -39,9 +28,6 @@
             <goals>
               <goal>shade</goal>
             </goals>
-            <!--<configuration>
-              <minimizeJar>true</minimizeJar>
-            </configuration>-->
           </execution>
         </executions>
       </plugin>
@@ -89,6 +75,27 @@
       </plugin>
     </plugins>
   </build>
+  <repositories>
+    <repository>
+      <id>mavenCentral</id>
+      <url>https://repo1.maven.org/maven2/</url>
+    </repository>
+    <repository>
+      <id>oss.sonatype.org-snapshot</id>
+      <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>repo.spring.io-milestone</id>
+      <url>https://repo.spring.io/milestone</url>
+    </repository>
+    <repository>
+      <id>google-api-services</id>
+      <url>http://google-api-client-libraries.appspot.com/mavenrepo</url>
+    </repository>
+  </repositories>
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -104,17 +111,17 @@
     <dependency>
       <groupId>org.jetbrains.kotlin</groupId>
       <artifactId>kotlin-stdlib-jdk8</artifactId>
-      <version>1.5.30</version>
+      <version>1.5.31</version>
     </dependency>
     <dependency>
       <groupId>io.projectreactor</groupId>
       <artifactId>reactor-core</artifactId>
-      <version>3.4.9</version>
+      <version>3.4.11</version>
     </dependency>
     <dependency>
       <groupId>com.discord4j</groupId>
       <artifactId>discord4j-core</artifactId>
-      <version>3.2.0-RC3</version>
+      <version>3.3.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.jetbrains.kotlinx</groupId>
@@ -135,6 +142,41 @@
       <groupId>com.google.code.gson</groupId>
       <artifactId>gson</artifactId>
       <version>2.8.8</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.api-client</groupId>
+      <artifactId>google-api-client</artifactId>
+      <version>1.32.2</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.apis</groupId>
+      <artifactId>google-api-services-youtube</artifactId>
+      <version>v3-rev20210915-1.32.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.apis</groupId>
+      <artifactId>google-api-services-youtubeAnalytics</artifactId>
+      <version>v2-rev20210510-1.32.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.apis</groupId>
+      <artifactId>google-api-services-youtubereporting</artifactId>
+      <version>v1-rev20200801-1.32.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.oauth-client</groupId>
+      <artifactId>google-oauth-client-jetty</artifactId>
+      <version>1.32.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.http-client</groupId>
+      <artifactId>google-http-client-jackson2</artifactId>
+      <version>1.40.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.collections</groupId>
+      <artifactId>google-collections</artifactId>
+      <version>1.0</version>
     </dependency>
   </dependencies>
 </project>

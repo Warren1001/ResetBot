@@ -74,4 +74,8 @@ class ShallowMessage(private val auriel: Auriel, val message: Message, val chann
 		
 	}
 	
+	fun dm(msg: String) {
+		author.privateChannel.flatMap { it.createMessage(msg) }.subscribe()
+	}
+	
 }

@@ -4,7 +4,7 @@
   <groupId>io.github.warren1001</groupId>
   <artifactId>ResetBot</artifactId>
   <name>ResetBot</name>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <build>
     <sourceDirectory>src/main/kotlin</sourceDirectory>
     <testSourceDirectory>src/test/kotlin</testSourceDirectory>
@@ -69,6 +69,19 @@
     <repository>
       <id>mavenCentral</id>
       <url>https://repo1.maven.org/maven2/</url>
+    </repository>
+    <repository>
+      <snapshots />
+      <id>oss.sonatype.org-snapshot</id>
+      <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+    </repository>
+    <repository>
+      <id>repo.spring.io-milestone</id>
+      <url>https://repo.spring.io/milestone</url>
+    </repository>
+    <repository>
+      <id>google-api-services</id>
+      <url>http://google-api-client-libraries.appspot.com/mavenrepo</url>
     </repository>
   </repositories>
   <dependencyManagement>

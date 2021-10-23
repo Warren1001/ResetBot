@@ -6,7 +6,7 @@ import discord4j.core.`object`.component.ActionRow
 import discord4j.core.`object`.component.Button
 import discord4j.core.`object`.entity.Message
 import discord4j.core.`object`.entity.channel.MessageChannel
-import discord4j.core.event.domain.interaction.ButtonInteractEvent
+import discord4j.core.event.domain.interaction.ButtonInteractionEvent
 import discord4j.core.spec.MessageEditSpec
 import io.github.warren1001.resetbot.Auriel
 import kotlin.concurrent.timer
@@ -31,7 +31,7 @@ class BotFilter(private val auriel: Auriel) {
 	private var alreadyInMsg: String = if (msgJsonObject.has("already-in")) msgJsonObject["already-in"].asString else "You are already in the server!"
 	
 	init {
-		auriel.getGateway().on(ButtonInteractEvent::class.java).onErrorContinue { it, _ -> auriel.getLogger().logError(it) }.flatMap {
+		auriel.getGateway().on(ButtonInteractionEvent::class.java).onErrorContinue { it, _ -> auriel.getLogger().logError(it) }.flatMap {
 			
 			val member = it.interaction.member.get()
 			

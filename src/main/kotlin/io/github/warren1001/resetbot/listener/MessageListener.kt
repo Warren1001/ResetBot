@@ -8,13 +8,14 @@ import discord4j.core.event.domain.message.MessageEvent
 import discord4j.core.event.domain.message.MessageUpdateEvent
 import discord4j.rest.util.Permission
 import io.github.warren1001.resetbot.Auriel
-import io.github.warren1001.resetbot.trivia.TriviaCommand
-import io.github.warren1001.resetbot.trivia.TriviaManager
 import io.github.warren1001.resetbot.command.CommandManager
 import io.github.warren1001.resetbot.command.impl.FilterCommand
 import io.github.warren1001.resetbot.command.impl.TradeChannelCommand
 import io.github.warren1001.resetbot.filter.BotFilter
 import io.github.warren1001.resetbot.filter.SwearFilter
+import io.github.warren1001.resetbot.trivia.TriviaCommand
+import io.github.warren1001.resetbot.trivia.TriviaManager
+import io.github.warren1001.resetbot.youtube.YoutubeCommand
 import reactor.core.publisher.Flux
 import reactor.util.function.Tuples
 import java.util.function.Consumer
@@ -124,6 +125,7 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 			return@registerCommand false
 		}
 		commandManager.registerCommand("trivia", action = TriviaCommand(auriel))
+		commandManager.registerCommand("youtube", action = YoutubeCommand(auriel))
 		
 	}
 	
@@ -150,14 +152,20 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 			is MessageCreateEvent -> {
 				
 				e.message.channel.filter { it !is PrivateChannel }.map { Tuples.of(it, e.message) }.filter { it.t2.author.isPresent && !it.t2.author.get().isBot && !it.t2.content.isNullOrEmpty() }
-					.map { ShallowMessage(auriel, it.t2, it.t1) }.filter { !commandManager.handle(it)/* && !botFilter.humanCheck(it.message)*/ && !triviaManager.handle(it) }.subscribe {
+					.map { ShallowMessage(auriel, it.t2, it.t1) }.subscribe {
+						
+						if (commandManager.handle(it)) return@subscribe
 						
 						if (tradeChannelListener.isTradeChannel(it.message.channelId)) tradeChannelListener.handle(it)
-						else swearFilter.checkMessage(it)
+						else {
+							if (swearFilter.checkMessage(it)) return@subscribe
+							if (triviaManager.handle(it)) return@subscribe
+						}
 						
 					}
 				
 			}
+			
 		}
 		
 	}

@@ -9,20 +9,30 @@ class RevealingMessage(private val word: String) {
 	
 	init {
 		charArray.fill('_')
+		word.forEachIndexed { index, c ->
+			if (c == ' ' || c == '\'' || c == '-') {
+				charArray[index] = word[index]
+				chosenIndexes.add(index)
+			}
+		}
 	}
 	
-	fun reveal(): String {
+	fun reveal(count: Int = 1): String {
+		for (i in 1..count) revealRandomChar()
+		return charArray.concatToString()
+	}
+	
+	fun wouldBeFullyRevealed(count: Int = 1): Boolean {
+		return chosenIndexes.size + count >= charArray.size
+	}
+	
+	private fun revealRandomChar() {
 		var index = Random.nextInt(word.length)
 		while (chosenIndexes.contains(index)) {
 			index = Random.nextInt(word.length)
 		}
 		chosenIndexes.add(index)
 		charArray[index] = word[index]
-		return charArray.concatToString()
-	}
-	
-	fun wouldBeFullyRevealed(): Boolean {
-		return chosenIndexes.size + 1 == charArray.size
 	}
 	
 }

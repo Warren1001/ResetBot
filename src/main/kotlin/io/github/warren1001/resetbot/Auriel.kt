@@ -3,6 +3,7 @@ package io.github.warren1001.resetbot
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
 import discord4j.core.GatewayDiscordClient
+import discord4j.core.`object`.entity.User
 import discord4j.core.event.domain.message.MessageCreateEvent
 import discord4j.core.event.domain.message.MessageDeleteEvent
 import discord4j.core.event.domain.message.MessageUpdateEvent
@@ -10,17 +11,19 @@ import io.github.warren1001.resetbot.listener.MessageListener
 import io.github.warren1001.resetbot.listener.UserManager
 import io.github.warren1001.resetbot.logging.Logger
 import io.github.warren1001.resetbot.utils.FileUtils
+import io.github.warren1001.resetbot.youtube.YoutubeManager
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class Auriel(private val gateway: GatewayDiscordClient) {
+class Auriel(private val gateway: GatewayDiscordClient, youtubeKey: String) {
 	
 	private val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss:SS")
 	private val jsonObject = FileUtils.readJsonLines("data.json")
 	private val userManager = UserManager()
 	private val logger: Logger = Logger(this)
-	private lateinit var warrenMention: String
+	private lateinit var warren: User
 	private val messageListener: MessageListener = MessageListener(this)
+	private val youtubeManager: YoutubeManager = YoutubeManager(this, youtubeKey)
 	
 	init {
 		gateway.on(MessageCreateEvent::class.java).onErrorContinue { error, _ -> logger.logError(error) }.subscribe(messageListener)
@@ -28,7 +31,7 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 		gateway.on(MessageDeleteEvent::class.java).onErrorContinue { error, _ -> logger.logError(error) }.subscribe(messageListener)
 		gateway.onDisconnect().doOnError { logger.logError(it) }.doOnSuccess { sys("Logging out and shutting down.") }.subscribe()
 		gateway.getUserById(Snowflake.of(164118147073310721L)).doOnError { logger.logError(it) }.subscribe {
-			warrenMention = it.mention
+			warren = it
 			messageListener.getBotFilter().setRandomCaptcha()
 		}
 	}
@@ -61,12 +64,16 @@ class Auriel(private val gateway: GatewayDiscordClient) {
 		return LocalDateTime.now().format(timeFormat)
 	}
 	
-	fun getWarrenMention(): String {
-		return warrenMention
+	fun getWarren(): User {
+		return warren
 	}
 	
-	fun hasWarrenMentionInit(): Boolean {
-		return this::warrenMention.isInitialized
+	fun hasWarrenInit(): Boolean {
+		return this::warren.isInitialized
+	}
+	
+	fun getYoutubeManager(): YoutubeManager {
+		return youtubeManager
 	}
 	
 	fun info(msg: String) {
