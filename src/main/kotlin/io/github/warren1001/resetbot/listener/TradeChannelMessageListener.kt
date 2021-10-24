@@ -64,18 +64,16 @@ class TradeChannelMessageListener(private val auriel: Auriel, private val channe
 	init {
 		val daysAgo = Instant.now().minus(2, ChronoUnit.DAYS)
 		auriel.getGateway().getChannelById(channelId).doOnError { auriel.getLogger().logError(it) }.cast(MessageChannel::class.java)
-			.flatMapMany { it.getMessagesBefore(Snowflake.of(Instant.now())) }.onErrorContinue { error, _ -> auriel.getLogger().logError(error) }.filter { !it.isPinned }
-			.subscribe { msg ->
+			.flatMapMany { it.getMessagesBefore(Snowflake.of(Instant.now())) }.onErrorContinue { error, _ -> auriel.getLogger().logError(error) }
+			.filter { !it.isPinned && !auriel.getUserManager().hasPermission(it.author.get().id, UserManager.MODERATOR) }.subscribe { msg ->
 				if (msg.content.isNullOrEmpty()) msg.delete().subscribe()
 				else {
-					if (msg.author.isPresent) {
-						val author = msg.author.get()
-						if (msg.timestamp.isBefore(daysAgo)) msg.delete().subscribe()
-						else {
-							if (usersLastMessage.containsKey(author.id)) msg.delete().subscribe()
-							else usersLastMessage[author.id] = msg.id
-						}
-					} else msg.delete().subscribe()
+					val author = msg.author.get()
+					if (msg.timestamp.isBefore(daysAgo)) msg.delete().subscribe()
+					else {
+						if (usersLastMessage.containsKey(author.id)) msg.delete().subscribe()
+						else usersLastMessage[author.id] = msg.id
+					}
 				}
 				
 			}
