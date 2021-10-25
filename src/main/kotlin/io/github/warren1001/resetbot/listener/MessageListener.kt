@@ -9,9 +9,9 @@ import discord4j.core.event.domain.message.MessageUpdateEvent
 import discord4j.rest.util.Permission
 import io.github.warren1001.resetbot.Auriel
 import io.github.warren1001.resetbot.command.CommandManager
-import io.github.warren1001.resetbot.command.impl.FilterCommand
-import io.github.warren1001.resetbot.command.impl.TradeChannelCommand
 import io.github.warren1001.resetbot.filter.BotFilter
+import io.github.warren1001.resetbot.filter.FilterCommand
+import io.github.warren1001.resetbot.filter.MuteFilter
 import io.github.warren1001.resetbot.filter.SwearFilter
 import io.github.warren1001.resetbot.trivia.TriviaCommand
 import io.github.warren1001.resetbot.trivia.TriviaManager
@@ -27,6 +27,7 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	private val commandManager = CommandManager(auriel, this)
 	private val tradeChannelListener = TradeChannelCommand(auriel)
 	private val triviaManager = TriviaManager(auriel)
+	private val muteFilter = MuteFilter(auriel)
 	
 	init {
 		
@@ -151,10 +152,10 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 			}
 			is MessageCreateEvent -> {
 				
-				e.message.channel.filter { it !is PrivateChannel }.map { Tuples.of(it, e.message) }.filter { it.t2.author.isPresent && !it.t2.author.get().isBot && !it.t2.content.isNullOrEmpty() }
-					.map { ShallowMessage(auriel, it.t2, it.t1) }.subscribe {
+				e.message.channel.filter { it !is PrivateChannel && e.message.author.isPresent && !e.message.author.get().isBot && !e.message.content.isNullOrEmpty() }
+					.map { ShallowMessage(auriel, e.message, it) }.subscribe {
 						
-						if (commandManager.handle(it)) return@subscribe
+						if (muteFilter.check(it) || commandManager.handle(it)) return@subscribe
 						
 						if (tradeChannelListener.isTradeChannel(it.message.channelId)) tradeChannelListener.handle(it)
 						else {
@@ -184,6 +185,10 @@ class MessageListener(private val auriel: Auriel) : Consumer<MessageEvent> {
 	
 	fun getTriviaManager(): TriviaManager {
 		return triviaManager
+	}
+	
+	fun getMuteFilter(): MuteFilter {
+		return muteFilter
 	}
 	
 }

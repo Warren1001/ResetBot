@@ -1,5 +1,6 @@
-package io.github.warren1001.resetbot.command.impl
+package io.github.warren1001.resetbot.filter
 
+import discord4j.common.util.Snowflake
 import io.github.warren1001.resetbot.Auriel
 import io.github.warren1001.resetbot.command.CommandContext
 
@@ -96,6 +97,17 @@ class FilterCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
 					
 					return true
 				}
+				
+			}
+			
+		} else if (args.size == 2) {
+			
+			if (args[0].equals("muterole", true) || args[0].equals("mute-role", true)) {
+				
+				val id = Snowflake.of(args[1])
+				auriel.getMessageListener().getMuteFilter().setMuteRoleId(id)
+				ctx.msg.reply("Set the mute role id to '${args[1]}'.", true, 10L)
+				return true
 				
 			}
 			

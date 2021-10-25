@@ -1,4 +1,4 @@
-package io.github.warren1001.resetbot
+package io.github.warren1001.resetbot.trivia
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -14,6 +14,17 @@ fun main() {
 	
 	
 	skillLevelReq("Magic Arrow", 1)
+	skillLevelReq("Fire Arrow", 1)
+	skillLevelReq("Inner Sight", 1)
+	skillLevelReq("Critical Strike", 1)
+	skillLevelReq("Jab", 1)
+	skillLevelReq("Power Strike", 6)
+	skillLevelReq("Poison Javelin", 6)
+	skillLevelReq("Dodge", 6)
+	skillLevelReq("Cold Arrow", 6)
+	skillLevelReq("Multiple Shot", 6)
+	skillLevelReq("Impale", 12)
+	skillLevelReq("Lightning Bolt", 12)
 	
 	
 	questionsJsonObject.add("questions", questionsJsonArray)

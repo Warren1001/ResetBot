@@ -50,12 +50,12 @@ class ChannelLogger(private val auriel: Auriel) {
 	
 	fun logDelete(message: ShallowMessage, reason: String) {
 		log(MessageCreateSpec.builder().content("__**Deleted Message**__\n${message.author.mention} in ${message.channel.mention} for: $reason" +
-				"\n```${message.message.content.replace("\n", "**\\n**").replace("```", "\\`\\`\\`")}```").build())
+				"\n```${message.message.content.replace("\n", "\\n").replace("```", "\\`\\`\\`")}```").build())
 	}
 	
 	fun logDelete(message: ShallowMessage, repostReference: Snowflake, reason: String) {
 		log(MessageCreateSpec.builder().content("__**Deleted Message**__\n${message.author.mention} in ${message.channel.mention} for: $reason" +
-				"\n```${message.message.content.replace("\n", "**\\n**").replace("```", "\\`\\`\\`")}```").addComponent(
+				"\n```${message.message.content.replace("\n", "**\\n**").replace("```", "``\\`")}```").addComponent(
 			ActionRow.of(Button.link("https://discord.com/channels/${message.message.guildId.get().asLong()}/${message.channel.id.asLong()}/${repostReference.asLong()}", "Jump to repost"))).build())
 	}
 	

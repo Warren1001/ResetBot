@@ -1,12 +1,10 @@
-package io.github.warren1001.resetbot.command.impl
+package io.github.warren1001.resetbot.listener
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import discord4j.common.util.Snowflake
 import io.github.warren1001.resetbot.Auriel
 import io.github.warren1001.resetbot.command.CommandContext
-import io.github.warren1001.resetbot.listener.ShallowMessage
-import io.github.warren1001.resetbot.listener.TradeChannelMessageListener
 import io.github.warren1001.resetbot.utils.JsonObjectBuilder
 
 class TradeChannelCommand(private val auriel: Auriel): (CommandContext) -> Boolean {
